@@ -214,7 +214,11 @@ function getStoreLocation() {
           password: 'maria123', barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
           landmark: 'Near 7-Eleven store', lat: 14.59715, lng: 120.98188, createdAt: new Date().toISOString()
         };
-        dbSet(K.USERS, [adminUser, demoCustomer, demoCustomer2]);
+        var adminUser2 = {
+          id: uid('user'), role: 'admin', fullName: 'Zabal (Admin)', phone: 'zabal@sarisari.com',
+          password: '123456', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
+        };
+        dbSet(K.USERS, [adminUser, adminUser2, demoCustomer, demoCustomer2]);
         dbSet(K.ORDERS, []);
         dbSet(K.NOTIFS, []);
         dbSet(K.COUNTER, 0);
@@ -229,6 +233,13 @@ function getStoreLocation() {
             id: uid('user'), role: 'customer', fullName: 'Maria Santos', phone: '09183334444',
             password: 'maria123', barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
             landmark: 'Near 7-Eleven store', lat: 14.59715, lng: 120.98188, createdAt: new Date().toISOString()
+          });
+          updated = true;
+        }
+        if (!users.some(function (u) { return u.phone === 'zabal@sarisari.com'; })) {
+          users.push({
+            id: uid('user'), role: 'admin', fullName: 'Zabal (Admin)', phone: 'zabal@sarisari.com',
+            password: '123456', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
           });
           updated = true;
         }

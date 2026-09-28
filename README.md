@@ -62,6 +62,7 @@ The application automatically seeds default accounts for testing. Use these cred
 | Role | Name | Phone Number (Username) | Password | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **Admin** | Aling Nena (Store Owner) | `09171234567` | `admin123` | Full access to Admin Dashboard, Inventory, Products, Orders, and Live Store GPS Setup. |
+| **Admin** | Zabal (Admin) | `zabal@sarisari.com` | `123456` | Full admin access. |
 | **Customer** | Juan Dela Cruz | `09201112222` | `juan123` | Customer account (Pre-configured address: 123 Mabini St., Barangay San Isidro). |
 | **Customer** | Maria Santos | `09183334444` | `maria123` | Customer account (Pre-configured address: 45 Taft Ave., Barangay San Isidro). |
 | **Customer** | Sign in with Google | *(Google Account)* | *(OAuth)* | 1-Tap Google login; auto-creates customer profile. |
