@@ -11,16 +11,27 @@
         else if (section === 'notifications') content = renderAdminNotifications(user);
         else content = renderAdminDashboard();
 
-        var titleMap = { dashboard: 'Dashboard', orders: 'Orders', deliveries: 'Deliveries', products: 'Products', inventory: 'Inventory', customers: 'Customers', notifications: 'Notifications' };
+        var titleMap = { dashboard: 'Overview', orders: 'Orders', deliveries: 'Deliveries', products: 'Products', inventory: 'Inventory', customers: 'Customers', notifications: 'Notifications' };
+        var descriptionMap = {
+          dashboard: 'A clear view of store activity and what needs attention.',
+          orders: 'Review and manage customer orders.',
+          deliveries: 'Track active deliveries and plan routes.',
+          products: 'Manage the items available in your store.',
+          inventory: 'Keep stock levels accurate and ready for orders.',
+          customers: 'View customer activity and order history.',
+          notifications: 'See the latest updates from your store.'
+        };
         var uc = unreadCount(user.id);
+        var firstName = (user.fullName || 'Admin').trim().split(/\s+/)[0];
 
         var html = '<div class="admin-shell">';
         if (state.sidebarOpen) html += '<div class="sidebar-backdrop" onclick="App.toggleSidebar(false)"></div>';
         html += renderAdminSidebar(section);
         html += '<div class="admin-main">';
-        html += '<div class="admin-topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="App.toggleSidebar(true)">' + ICON.menu + '</button><h2 style="font-size:18px;font-weight:800;">' + titleMap[section] + '</h2><span class="cloud-badge"><span class="cloud-dot"></span> Firebase Live</span></div><button class="icon-btn" style="background:var(--surface-2);color:var(--ink-700);border:1px solid var(--border);" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot" style="background:var(--red-500);color:#fff;">' + uc + '</span>' : '') + '</button></div>';
-        html += '<div class="admin-content">' + content + '</div>';
+        html += '<header class="admin-topbar"><div class="admin-topbar-leading"><button class="hamburger" onclick="App.toggleSidebar(true)" aria-label="Open menu">' + ICON.menu + '</button><span class="admin-topbar-brand">NelGlenn\'s <small>Admin</small></span></div><div class="admin-topbar-actions"><span class="cloud-badge"><span class="cloud-dot"></span> Live store</span><button class="icon-btn admin-notif-button" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') + '</button><span class="admin-user-avatar" title="' + esc(user.fullName) + '">' + esc(firstName.charAt(0).toUpperCase()) + '</span></div></header>';
+        html += '<main class="admin-content"><div class="admin-page-heading"><div><p class="admin-eyebrow">STORE MANAGEMENT</p><h1>' + titleMap[section] + '</h1><p class="admin-page-description">' + descriptionMap[section] + '</p></div><span class="admin-page-context">' + esc(user.fullName) + '</span></div>' + content + '</main>';
         html += '</div></div>';
+        html += renderAdminMobileNav(section);
         if (state.notifOpen) html += renderNotifDrawer(user);
         if (state.view === 'admin-product-modal') html += renderProductModal();
         if (state.view === 'admin-order-modal') html += renderAdminOrderModal();
@@ -33,7 +44,7 @@
         }
         return '' +
           '<div class="admin-sidebar' + (state.sidebarOpen ? ' open' : '') + '">' +
-          '<div class="admin-brand"><div class="mark">' + ICON.store + '</div><span>NelGlenn\'s Admin</span></div>' +
+          '<div class="admin-brand"><div class="mark">' + ICON.store + '</div><span>NelGlenn\'s <small>STORE ADMIN</small></span><button class="admin-sidebar-close" onclick="App.toggleSidebar(false)" aria-label="Close menu">&times;</button></div>' +
           '<div class="admin-nav">' +
           item('dashboard', ICON.dash, 'Dashboard') +
           item('orders', ICON.orders, 'Orders') +
@@ -44,8 +55,21 @@
           item('notifications', ICON.bell, 'Notifications') +
           '<div class="grp-label">Account</div>' +
           '<button onclick="App.logout()"><span class="ic">' + ICON.logout + '</span>Log out</button>' +
-          '</div>' +
+          '</div><div class="admin-sidebar-footer"><span class="cloud-dot"></span> Store workspace</div>' +
           '</div>';
+      }
+
+      function renderAdminMobileNav(section) {
+        function item(key, icon, label) {
+          return '<button class="' + (section === key ? 'active' : '') + '" onclick="App.setAdminSection(\'' + key + '\')" aria-label="' + label + '"' + (section === key ? ' aria-current="page"' : '') + '><span class="ic">' + icon + '</span><span>' + label + '</span></button>';
+        }
+        return '<nav class="admin-mobile-nav" aria-label="Admin navigation">' +
+          item('dashboard', ICON.dash, 'Home') +
+          item('orders', ICON.orders, 'Orders') +
+          item('deliveries', ICON.delivery, 'Deliveries') +
+          item('products', ICON.products, 'Products') +
+          '<button onclick="App.toggleSidebar(true)" aria-label="More sections"><span class="ic">' + ICON.menu + '</span><span>More</span></button>' +
+          '</nav>';
       }
 
       function renderAdminDashboard() {
@@ -65,9 +89,9 @@
         var lowStockAlert = '';
         if (totalLowItems > 0) {
           lowStockAlert = '' +
-            '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-left:5px solid var(--amber-500);padding:12px 16px;border-radius:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">' +
+            '<div class="admin-stock-alert">' +
               '<div>' +
-                '<strong style="color:var(--amber-700);font-size:14px;display:flex;align-items:center;gap:6px;">⚠️ Low Stock Alert</strong>' +
+                '<strong>⚠️ Low stock alert</strong>' +
                 '<div style="font-size:12.5px;color:var(--ink-700);margin-top:2px;">' + totalLowItems + ' product(s) are low or out of stock!</div>' +
               '</div>' +
               '<button class="btn btn-warning btn-sm" style="font-weight:700;" onclick="App.restockAllLowItems()">' + ICON.plus + ' Restock All (+20)</button>' +
@@ -134,8 +158,9 @@
             '</div>';
         }).join('');
 
-        return lowStockAlert + '<div class="stat-grid">' + statHtml + '</div>' + analyticsHtml +
-          '<div class="section-title">Recent orders</div>' +
+        return '<div class="admin-quick-actions"><div><strong>Today at a glance</strong><span>' + todays.length + ' orders today · ' + pending.length + ' waiting for review</span></div><div class="admin-quick-links"><button class="btn btn-outline btn-sm" onclick="App.setAdminSection(\'orders\')">View orders</button><button class="btn btn-primary btn-sm" onclick="App.setAdminSection(\'deliveries\')">Open deliveries</button></div></div>' +
+          lowStockAlert + '<div class="stat-grid">' + statHtml + '</div>' + analyticsHtml +
+          '<div class="admin-section-heading"><div class="section-title">Recent orders</div><button class="btn btn-outline btn-sm" onclick="App.setAdminSection(\'orders\')">View all</button></div>' +
           '<div class="table-list">' + recentHtml + '</div>';
       }
 

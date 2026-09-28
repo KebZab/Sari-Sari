@@ -140,8 +140,11 @@ for (const section of ['dashboard', 'orders', 'deliveries', 'products', 'invento
   context.window.App.setAdminSection(section);
   assert.equal(context.window.state.adminSection, section);
   assert.equal(context.window.state.view, 'admin-' + section);
-  assert.match(app.innerHTML, new RegExp('<h2[^>]*>' + section[0].toUpperCase() + section.slice(1) + '</h2>'));
+  const heading = section === 'dashboard' ? 'Overview' : section[0].toUpperCase() + section.slice(1);
+  assert.match(app.innerHTML, new RegExp('<h1>' + heading + '</h1>'));
 }
+assert.match(app.innerHTML, /admin-mobile-nav/);
+assert.match(app.innerHTML, /aria-label="More sections"/);
 assert.match(app.innerHTML, /onclick="App.toggleNotif\(true\)" aria-label="Notifications"/);
 context.window.App.toggleNotif(true);
 assert.equal(context.window.state.notifOpen, true);

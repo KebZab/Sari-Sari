@@ -1006,6 +1006,25 @@
       align-items: center;
     }
 
+    @media (max-width:639px) {
+      .admin-radar-card { padding: 14px; }
+      .admin-radar-map-view { height: 330px; }
+      .admin-delivery-ticket { padding: 15px; }
+      .ticket-header { align-items: flex-start; }
+      .ticket-header > div,
+      .ticket-header > div:first-child > div:last-child { min-width: 0; }
+      .ticket-header > div:last-child { flex-wrap: wrap; }
+      .ticket-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ticket-actions .btn { min-height: 42px; white-space: normal; line-height: 1.25; }
+      .ticket-actions .btn:first-child { grid-column: 1 / -1; }
+      .admin-order-modal-card { max-height: calc(100dvh - 24px); }
+    }
+
+    @media (max-width:390px) {
+      .ticket-actions { grid-template-columns: 1fr; }
+      .ticket-actions .btn:first-child { grid-column: auto; }
+    }
+
     /* Navigation Info Bar (Admin Route Selection) */
     .nav-info-bar {
       background: linear-gradient(135deg, var(--green-50, rgba(45,165,110,0.08)), rgba(45,165,110,0.04));
