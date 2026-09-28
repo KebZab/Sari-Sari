@@ -1,0 +1,296 @@
+/* ================= ADMIN VIEWS & SHELL ================= */
+/* ================= ADMIN SHELL ================= */
+      function renderAdminShell(user) {
+        var section = state.adminSection;
+        var content;
+        if (section === 'orders') content = renderAdminOrders();
+        else if (section === 'deliveries') content = renderAdminDeliveries();
+        else if (section === 'products') content = renderAdminProducts();
+        else if (section === 'inventory') content = renderAdminInventory();
+        else if (section === 'customers') content = renderAdminCustomers();
+        else if (section === 'notifications') content = renderAdminNotifications(user);
+        else content = renderAdminDashboard();
+
+        var titleMap = { dashboard: 'Dashboard', orders: 'Orders', deliveries: 'Deliveries', products: 'Products', inventory: 'Inventory', customers: 'Customers', notifications: 'Notifications' };
+        var uc = unreadCount(user.id);
+
+        var html = '<div class="admin-shell">';
+        if (state.sidebarOpen) html += '<div class="sidebar-backdrop" onclick="App.toggleSidebar(false)"></div>';
+        html += renderAdminSidebar(section);
+        html += '<div class="admin-main">';
+        html += '<div class="admin-topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="App.toggleSidebar(true)">' + ICON.menu + '</button><h2 style="font-size:18px;font-weight:800;">' + titleMap[section] + '</h2><span class="cloud-badge"><span class="cloud-dot"></span> Firebase Live</span></div><button class="icon-btn" style="background:var(--surface-2);color:var(--ink-700);border:1px solid var(--border);" onclick="App.go(\'admin-notif-drawer\')">' + ICON.bell + (uc > 0 ? '<span class="dot" style="background:var(--red-500);color:#fff;">' + uc + '</span>' : '') + '</button></div>';
+        html += '<div class="admin-content">' + content + '</div>';
+        html += '</div></div>';
+        if (state.notifOpen) html += renderNotifDrawer(user);
+        if (state.view === 'admin-product-modal') html += renderProductModal();
+        if (state.view === 'admin-order-modal') html += renderAdminOrderModal();
+        return html;
+      }
+
+      function renderAdminSidebar(section) {
+        function item(key, icon, label) {
+          return '<button class="' + (section === key ? 'active' : '') + '" onclick="App.setAdminSection(\'' + key + '\')"><span class="ic">' + icon + '</span>' + label + '</button>';
+        }
+        return '' +
+          '<div class="admin-sidebar' + (state.sidebarOpen ? ' open' : '') + '">' +
+          '<div class="admin-brand"><div class="mark">' + ICON.store + '</div><span>Aling Nena\'s Admin</span></div>' +
+          '<div class="admin-nav">' +
+          item('dashboard', ICON.dash, 'Dashboard') +
+          item('orders', ICON.orders, 'Orders') +
+          item('deliveries', ICON.delivery, 'Deliveries') +
+          item('products', ICON.products, 'Products') +
+          item('inventory', ICON.inventory, 'Inventory') +
+          item('customers', ICON.customers, 'Customers') +
+          item('notifications', ICON.bell, 'Notifications') +
+          '<div class="grp-label">Account</div>' +
+          '<button onclick="App.logout()"><span class="ic">' + ICON.logout + '</span>Log out</button>' +
+          '</div>' +
+          '</div>';
+      }
+
+      function renderAdminDashboard() {
+        var orders = getOrders();
+        var products = getProducts();
+        var today = new Date();
+        var todays = orders.filter(function (o) { return isSameDay(o.createdAt, today); });
+        var pending = orders.filter(function (o) { return o.status === 'Pending'; });
+        var preparing = orders.filter(function (o) { return o.status === 'Preparing'; });
+        var outfd = orders.filter(function (o) { return o.status === 'Out for Delivery'; });
+        var completed = orders.filter(function (o) { return o.status === 'Delivered'; });
+        var totalSales = completed.reduce(function (s, o) { return s + o.total; }, 0);
+        var lowStock = products.filter(function (p) { return p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD; });
+        var outStock = products.filter(function (p) { return p.stock <= 0; });
+
+        var stats = [
+          [ICON.orders, "Today's Orders", todays.length, ''],
+          [ICON.clock, 'Pending Orders', pending.length, pending.length > 0 ? 'warn' : ''],
+          [ICON.fire, 'Being Prepared', preparing.length, ''],
+          [ICON.truck, 'Out for Delivery', outfd.length, ''],
+          [ICON.check, 'Completed Orders', completed.length, ''],
+          [ICON.money, 'Total Sales', peso(totalSales), ''],
+          [ICON.box, 'Total Products', products.length, ''],
+          [ICON.warning, 'Low-Stock Products', lowStock.length, lowStock.length > 0 ? 'warn' : ''],
+          [ICON.close, 'Out-of-Stock Products', outStock.length, outStock.length > 0 ? 'danger' : '']
+        ];
+        var statHtml = stats.map(function (s) {
+          return '<div class="stat-card ' + s[3] + '"><span class="stat-icon">' + s[0] + '</span><div class="num">' + s[2] + '</div><div class="lbl">' + s[1] + '</div></div>';
+        }).join('');
+
+        var recent = orders.slice().sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); }).slice(0, 6);
+        var recentHtml = recent.length === 0 ? '<div class="empty-state"><div class="ic">' + ICON.orders + '</div><h3>No orders yet</h3><p>Orders will appear here once customers start ordering.</p></div>' : recent.map(function (o) {
+          return '<div class="trow" onclick="App.openOrderModal(\'' + o.id + '\')" style="cursor:pointer;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<div><div style="font-weight:700;font-size:14px;">' + esc(o.orderNumber) + '</div><div style="font-size:12px;color:var(--ink-500);margin-top:2px;">' + esc(o.delivery.fullName) + ' &middot; ' + fmtDateTime(o.createdAt) + '</div></div>' +
+            '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
+            '</div>' +
+            '</div>';
+        }).join('');
+
+        return '<div class="stat-grid">' + statHtml + '</div>' +
+          '<div class="section-title">Recent orders</div>' +
+          '<div class="table-list">' + recentHtml + '</div>';
+      }
+
+      function renderAdminOrders() {
+        var filters = ['All', 'Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
+        var orders = getOrders().slice().sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+        if (state.orderFilter !== 'All') orders = orders.filter(function (o) { return o.status === state.orderFilter; });
+        var chips = filters.map(function (f) {
+          return '<button class="chip' + (state.orderFilter === f ? ' active' : '') + '" onclick="App.setOrderFilter(\'' + f + '\')">' + f + '</button>';
+        }).join('');
+        var list = orders.length === 0 ? '<div class="empty-state"><h3>No orders in this filter</h3></div>' : orders.map(function (o) {
+          return '' +
+            '<div class="trow" onclick="App.openOrderModal(\'' + o.id + '\')" style="cursor:pointer;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+            '<div><div style="font-weight:700;font-size:14.5px;">' + esc(o.orderNumber) + '</div>' +
+            '<div style="font-size:12.5px;color:var(--ink-500);margin-top:3px;">' + esc(o.delivery.fullName) + ' &middot; ' + esc(o.delivery.phone) + '</div>' +
+            '<div style="font-size:12px;color:var(--ink-500);margin-top:2px;">' + fmtDateTime(o.createdAt) + ' &middot; ' + o.items.length + ' item(s) &middot; ' + peso(o.total) + '</div></div>' +
+            '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
+            '</div>' +
+            '</div>';
+        }).join('');
+        return '<div class="filter-row">' + chips + '</div><div class="table-list">' + list + '</div>';
+      }
+
+      function renderAdminDeliveries() {
+        var orders = getOrders().filter(function (o) { return o.status === 'Preparing' || o.status === 'Out for Delivery'; });
+        orders.sort(function (a, b) { return new Date(a.createdAt) - new Date(b.createdAt); });
+
+        var mapHeader = '<div id="admin-radar-react-root"></div>';
+
+        if (orders.length === 0) {
+          return mapHeader + '<div class="empty-state"><div class="ic">' + ICON.truck + '</div><h3>No active deliveries</h3><p>Orders being prepared or out for delivery appear here.</p></div>';
+        }
+
+        var listHtml = orders.map(function (o) {
+          var c = getOrderCoords(o);
+          var dist = c && hasStoreGps(STORE_LOCATION) ? calcDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, c.lat, c.lng) : null;
+          var distStr = dist !== null ? (dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(2) + ' km') : (c ? 'Store GPS not set' : 'No drop-off pin');
+          return '' +
+            '<div class="trow">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
+            '<div><div style="font-weight:800;font-size:14.5px;">' + esc(o.orderNumber) + '</div><div style="font-size:12px;color:var(--ink-500);margin-top:2px;">' + fmtDateTime(o.createdAt) + ' &middot; <b>' + distStr + ' from store</b></div></div>' +
+            '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
+            '</div>' +
+            '<div class="info-row"><span class="k">' + ICON.pin + ' Deliver to</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
+            '<div class="info-row"><span class="k">GPS Location</span><span class="v" style="font-family:monospace;font-size:11.5px;">' + (c ? c.lat.toFixed(5) + ', ' + c.lng.toFixed(5) : 'No location saved') + '</span></div>' +
+            '<div class="info-row"><span class="k">Landmark</span><span class="v">' + esc(o.delivery.landmark || '\u2014') + '</span></div>' +
+            '<div class="info-row"><span class="k">' + ICON.phone + ' Contact</span><span class="v">' + esc(o.delivery.phone) + '</span></div>' +
+            '<div style="margin-top:12px;display:flex;gap:8px;">' +
+            (o.status === 'Preparing' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Mark out for delivery</button>' : '') +
+            (o.status === 'Out for Delivery' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark delivered</button>' : '') +
+            '<button class="btn btn-outline btn-sm" onclick="App.openOrderModal(\'' + o.id + '\')">View details</button>' +
+            '</div>' +
+            '</div>';
+        }).join('');
+
+        return mapHeader + '<div class="table-list">' + listHtml + '</div>';
+      }
+
+      function renderAdminProducts() {
+        var products = getProducts();
+        var rows = products.length === 0 ? '<div class="empty-state"><h3>No products yet</h3></div>' : products.map(function (p) {
+          var cat = categoryById(p.categoryId);
+          var st = stockStatus(p);
+          return '' +
+            '<div class="prod-row">' +
+            '<div class="thumb">' + (p.image ? '<img src="' + p.image + '">' : '<span>' + (p.emoji || ICON.box) + '</span>') + '</div>' +
+            '<div class="body"><div class="nm">' + esc(p.name) + '</div><div class="sub">' + esc(cat ? cat.name : '') + ' &middot; ' + peso(p.price) + ' &middot; <span>' + p.stock + ' in stock</span></div></div>' +
+            '<div class="acts">' +
+            '<button class="icon-sq" title="Edit" onclick="App.openProductModal(\'' + p.id + '\')">' + ICON.edit + '</button>' +
+            '<button class="icon-sq" title="Archive/Delete" onclick="App.deleteProduct(\'' + p.id + '\')">' + ICON.trash + '</button>' +
+            '</div>' +
+            '</div>';
+        }).join('');
+        return '<button class="btn btn-primary" style="margin-bottom:16px;" onclick="App.openProductModal(null)">' + ICON.plus + ' Add new product</button><div class="prod-list">' + rows + '</div>';
+      }
+
+      function renderAdminInventory() {
+        var products = getProducts().slice().sort(function (a, b) { return a.stock - b.stock; });
+        var rows = products.map(function (p) {
+          var st = stockStatus(p);
+          var cat = categoryById(p.categoryId);
+          return '' +
+            '<div class="prod-row">' +
+            '<div class="thumb">' + (p.image ? '<img src="' + p.image + '">' : '<span>' + (p.emoji || ICON.box) + '</span>') + '</div>' +
+            '<div class="body"><div class="nm">' + esc(p.name) + ' <span class="p-badge ' + st.cls + '" style="position:static;display:inline-block;margin-left:6px;">' + st.label + '</span></div><div class="sub">' + esc(cat ? cat.name : '') + ' &middot; Stock: ' + p.stock + '</div></div>' +
+            '<div class="acts">' +
+            '<button class="icon-sq" onclick="App.adjustStock(\'' + p.id + '\',-1)">' + ICON.minus + '</button>' +
+            '<button class="icon-sq" onclick="App.adjustStock(\'' + p.id + '\',1)">' + ICON.plus + '</button>' +
+            '<button class="icon-sq" onclick="App.adjustStock(\'' + p.id + '\',10)" style="font-size:11px;font-weight:800;">+10</button>' +
+            '</div>' +
+            '</div>';
+        }).join('');
+        return '<div class="section-title" style="margin-top:0;">' + ICON.inventory + ' Stock levels (lowest first)</div><div class="prod-list">' + rows + '</div>';
+      }
+
+      function renderAdminCustomers() {
+        var users = getUsers().filter(function (u) { return u.role === 'customer'; });
+        var orders = getOrders();
+        if (users.length === 0) return '<div class="empty-state"><h3>No customers yet</h3></div>';
+        return '<div class="table-list">' + users.map(function (u) {
+          var uo = orders.filter(function (o) { return o.customerId === u.id; });
+          var spent = uo.filter(function (o) { return o.status === 'Delivered'; }).reduce(function (s, o) { return s + o.total; }, 0);
+          return '' +
+            '<div class="trow">' +
+            '<div style="font-weight:800;font-size:15px;">' + esc(u.fullName) + '</div>' +
+            '<div class="info-row"><span class="k">' + ICON.phone + ' Phone</span><span class="v">' + esc(u.phone) + '</span></div>' +
+            '<div class="info-row"><span class="k">' + ICON.pin + ' Address</span><span class="v">' + esc(u.houseStreet + ', ' + u.barangay) + '</span></div>' +
+            '<div class="info-row"><span class="k">Orders placed</span><span class="v">' + uo.length + '</span></div>' +
+            '<div class="info-row"><span class="k">Total spent (delivered)</span><span class="v">' + peso(spent) + '</span></div>' +
+            '</div>';
+        }).join('') + '</div>';
+      }
+
+      function renderAdminNotifications(user) {
+        var items = getNotifs().filter(function (n) { return n.userId === user.id; });
+        if (items.length === 0) return '<div class="empty-state"><div class="ic">' + ICON.bell + '</div><h3>No notifications</h3></div>';
+        return items.map(function (n) {
+          return '<div class="notif-item' + (n.read ? '' : ' unread') + '" onclick="App.readNotif(\'' + n.id + '\')">' +
+            '<div class="notif-ic">' + notifIcon(n.type) + '</div>' +
+            '<div><div class="notif-text">' + esc(n.message) + '</div><div class="notif-time">' + fmtDateTime(n.createdAt) + '</div></div>' +
+            '</div>';
+        }).join('');
+      }
+
+      /* ---------- Admin: Order detail modal ---------- */
+      function renderAdminOrderModal() {
+        var o = getOrders().filter(function (x) { return x.id === state.orderDetailId; })[0];
+        if (!o) return '';
+        var itemsHtml = o.items.map(function (it) {
+          return '<div class="info-row"><span class="k">' + esc(it.name) + ' &times; ' + it.qty + '</span><span class="v">' + peso(it.price * it.qty) + '</span></div>';
+        }).join('');
+        var actions = '';
+        if (o.status === 'Pending') {
+          actions = '<button class="btn btn-primary btn-sm" onclick="App.confirmOrder(\'' + o.id + '\')">' + ICON.check + ' Accept order</button><button class="btn btn-danger btn-sm" onclick="App.rejectOrder(\'' + o.id + '\')">' + ICON.close + ' Reject order</button>';
+        } else if (o.status === 'Confirmed') {
+          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Preparing\')">' + ICON.fire + ' Start preparing</button><button class="btn btn-danger btn-sm" onclick="App.rejectOrder(\'' + o.id + '\')">Cancel order</button>';
+        } else if (o.status === 'Preparing') {
+          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Mark out for delivery</button>';
+        } else if (o.status === 'Out for Delivery') {
+          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark delivered</button>';
+        }
+        var modalCoords = getOrderCoords(o);
+        var modalDist = modalCoords && hasStoreGps(STORE_LOCATION) ? calcDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, modalCoords.lat, modalCoords.lng) : null;
+        var modalDistStr = modalDist !== null ? (modalDist < 1 ? Math.round(modalDist * 1000) + 'm from store' : modalDist.toFixed(2) + ' km from store') : (modalCoords ? 'Store GPS not set' : 'No location saved');
+
+        return '' +
+          '<div class="overlay-bg center" onclick="if(event.target===this) App.closeModal()">' +
+          '<div class="modal-card">' +
+          '<div class="modal-head"><div style="display:flex;justify-content:space-between;align-items:center;"><h3>' + esc(o.orderNumber) + '</h3><button class="close-x" onclick="App.closeModal()">' + ICON.close + '</button></div><span class="status-badge ' + statusClass(o.status) + '" style="margin-top:8px;display:inline-block;">' + esc(o.status) + '</span></div>' +
+          '<div class="modal-body">' +
+          '<div class="section-title" style="margin-top:0;">Customer &amp; GPS Location</div>' +
+          '<div class="info-row"><span class="k">Name</span><span class="v">' + esc(o.delivery.fullName) + '</span></div>' +
+          '<div class="info-row"><span class="k">Phone</span><span class="v">' + esc(o.delivery.phone) + '</span></div>' +
+          '<div class="info-row"><span class="k">Address</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
+          '<div class="info-row"><span class="k">GPS Pin</span><span class="v" style="font-family:monospace;font-size:11.5px;">' + (modalCoords ? modalCoords.lat.toFixed(5) + ', ' + modalCoords.lng.toFixed(5) + ' &middot; ' : '') + modalDistStr + '</span></div>' +
+          '<div class="info-row"><span class="k">Landmark</span><span class="v">' + esc(o.delivery.landmark || '\u2014') + '</span></div>' +
+          '<div class="info-row"><span class="k">Instructions</span><span class="v">' + esc(o.instructions || '\u2014') + '</span></div>' +
+          '<div class="info-row"><span class="k">Order placed</span><span class="v">' + fmtDateTime(o.createdAt) + '</span></div>' +
+          '<div class="divider"></div>' +
+          '<div class="section-title" style="margin-top:0;">Items</div>' +
+          itemsHtml +
+          '<div class="divider"></div>' +
+          '<div class="summary-row total"><span>Total</span><span>' + peso(o.total) + '</span></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">' + actions + '</div>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+      }
+
+      /* ---------- Admin: Product add/edit modal ---------- */
+      function renderProductModal() {
+        var editing = state.editingProductId ? productById(state.editingProductId) : null;
+        var categories = getCategories();
+        var selectedCat = state.productFormCategory || (editing ? editing.categoryId : categories[0].id);
+        var img = state.productFormImage !== undefined ? state.productFormImage : (editing ? editing.image : null);
+        return '' +
+          '<div class="overlay-bg center" onclick="if(event.target===this) App.closeModal()">' +
+          '<div class="modal-card">' +
+          '<div class="modal-head"><div style="display:flex;justify-content:space-between;align-items:center;"><h3>' + (editing ? 'Edit product' : 'Add new product') + '</h3><button class="close-x" onclick="App.closeModal()">' + ICON.close + '</button></div></div>' +
+          '<div class="modal-body">' +
+          '<form onsubmit="return App.saveProduct(event)">' +
+          '<div class="field"><label>Product image</label>' +
+          '<div class="img-upload"><div class="prev" id="prod-img-prev">' + (img ? '<img src="' + img + '">' : '<span>' + ICON.box + '</span>') + '</div>' +
+          '<span class="btn btn-outline btn-sm file-btn">Choose image<input type="file" accept="image/*" onchange="App.handleProductImage(event)"></span></div>' +
+          '</div>' +
+          '<div class="field"><label>Product name</label><input id="pd-name" type="text" value="' + esc(editing ? editing.name : '') + '" required></div>' +
+          '<div class="field"><label>Category</label><select id="pd-category" onchange="state.productFormCategory=this.value">' +
+          categories.map(function (c) { return '<option value="' + c.id + '" ' + (selectedCat === c.id ? 'selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="field"><label>Description</label><textarea id="pd-desc">' + esc(editing ? editing.description : '') + '</textarea></div>' +
+          '<div class="wide-input-row">' +
+          '<div class="field"><label>Selling price (\u20b1)</label><input id="pd-price" type="number" min="0" step="0.01" value="' + (editing ? editing.price : '') + '" required></div>' +
+          '<div class="field"><label>Stock quantity</label><input id="pd-stock" type="number" min="0" step="1" value="' + (editing !== null ? editing.stock : '') + '" required></div>' +
+          '</div>' +
+          '<div class="field"><label>Availability</label><select id="pd-status">' +
+          '<option value="available" ' + ((!editing || editing.status === 'available') ? 'selected' : '') + '>Available for order</option>' +
+          '<option value="unavailable" ' + ((editing && editing.status === 'unavailable') ? 'selected' : '') + '>Mark as unavailable</option>' +
+          '</select></div>' +
+          '<button type="submit" class="btn btn-primary btn-block">' + (editing ? ICON.check + ' Save changes' : ICON.plus + ' Add product') + '</button>' +
+          '</form>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+      }
+

@@ -2,12 +2,44 @@ const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
 
-const html = fs.readFileSync('sari-sari-store.html', 'utf8');
-if (fs.existsSync('index.html')) {
-  assert.equal(fs.readFileSync('index.html', 'utf8'), html, 'index.html must match sari-sari-store.html');
+// 1. Verify entrypoint integrity
+const indexHtml = fs.readFileSync('index.html', 'utf8');
+const sariStoreHtml = fs.readFileSync('sari-sari-store.html', 'utf8');
+assert.equal(indexHtml, sariStoreHtml, 'index.html and sari-sari-store.html must match');
+
+// 2. Verify all modular files exist and are referenced in HTML
+const modularScripts = [
+  'js/config.js',
+  'js/store-db.js',
+  'js/state.js',
+  'js/geolocation.js',
+  'js/map-engine.js',
+  'js/views/auth.views.js',
+  'js/views/customer.views.js',
+  'js/views/admin.views.js',
+  'js/views/location.modal.js',
+  'js/app.js'
+];
+
+for (const s of modularScripts) {
+  assert.ok(fs.existsSync(s), `Missing module file: ${s}`);
+  assert.ok(indexHtml.includes(s), `index.html must reference: ${s}`);
 }
-const script = html.match(/<script>\s*([\s\S]*?)<\/script>\s*<\/body>/)[1];
-new vm.Script(script);
+
+const cssFiles = [
+  'css/app.css',
+  'css/variables.css',
+  'css/base.css',
+  'css/customer.css',
+  'css/admin.css',
+  'css/maps-modals.css'
+];
+
+for (const c of cssFiles) {
+  assert.ok(fs.existsSync(c), `Missing CSS file: ${c}`);
+}
+
+// 3. Execution context for automated simulation
 const memory = new Map();
 const inputs = {};
 const app = { innerHTML: '' };
@@ -29,11 +61,20 @@ const context = {
   window: { scrollTo() {} },
   React: { createElement() {} }
 };
+context.window.window = context.window;
 vm.createContext(context);
-vm.runInContext(script, context);
+
+// Load and execute all modular scripts in order
+for (const scriptFile of modularScripts) {
+  const code = fs.readFileSync(scriptFile, 'utf8');
+  vm.runInContext(code, context);
+}
+
+// Assert initial startup
 assert.match(app.innerHTML, /Aling Nena's/);
 assert.equal(JSON.parse(memory.get('sst_products')).length, 28);
 
+// Customer login
 inputs['login-phone'] = { value: '09201112222' };
 inputs['login-password'] = { value: 'juan123' };
 context.window.App.handleLogin({ preventDefault() {} });
@@ -42,6 +83,8 @@ const product = JSON.parse(memory.get('sst_products')).find(p => p.name.startsWi
 for (const item of JSON.parse(memory.get('sst_products'))) {
   if (item.image) assert.ok(fs.existsSync(item.image), `Missing product image: ${item.image}`);
 }
+
+// Cart & Checkout
 context.window.App.addToCart(product.id);
 assert.equal(JSON.parse(memory.get('sst_cart_' + JSON.parse(memory.get('sst_session')).userId))[0].qty, 1);
 context.window.App.goCheckout();
@@ -52,6 +95,7 @@ assert.equal(orders.length, 1);
 assert.equal(orders[0].delivery.lat, 10.5);
 assert.equal(orders[0].delivery.lng, 123.9);
 
+// Admin login & Order confirmation
 context.window.App.logout();
 inputs['login-phone'].value = '09171234567';
 inputs['login-password'].value = 'admin123';
@@ -61,4 +105,5 @@ context.window.App.confirmOrder(orders[0].id);
 orders = JSON.parse(memory.get('sst_orders'));
 assert.equal(orders[0].status, 'Confirmed');
 assert.equal(JSON.parse(memory.get('sst_products')).find(p => p.id === product.id).stock, product.stock - 1);
+
 console.log('Smoke check passed: startup, customer login/cart/checkout, admin login/order confirmation.');
