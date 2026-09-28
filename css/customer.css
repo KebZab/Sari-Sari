@@ -351,14 +351,20 @@
 
     .p-card {
       background: var(--surface);
-      border-radius: 16px;
+      border-radius: 18px;
       overflow: hidden;
       box-shadow: 0 2px 10px rgba(11, 46, 31, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
       display: flex;
       flex-direction: column;
       border: 1.5px solid var(--border);
       position: relative;
-      transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+    }
+
+    .p-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px -6px rgba(16, 185, 129, 0.18), 0 4px 10px rgba(0, 0, 0, 0.04);
+      border-color: var(--green-400);
     }
 
     .p-card:active {
