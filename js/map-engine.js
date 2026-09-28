@@ -45,8 +45,9 @@
         return L.divIcon({
           className: 'leaflet-store-marker',
           html: '<div class="store-pin-inner"><span class="store-emoji">🏪</span><span class="store-label">NelGlenn\'s</span></div>',
-          iconSize: [110, 36],
-          iconAnchor: [55, 36]
+          iconSize: [130, 44],
+          iconAnchor: [65, 44],
+          popupAnchor: [0, -44]
         });
       }
 
@@ -57,8 +58,9 @@
         return L.divIcon({
           className: 'leaflet-customer-marker' + (isCurrent ? ' current-buyer' : ''),
           html: '<div class="cust-pin-inner"><div class="cust-pulse"></div><div class="cust-badge">' + initials + '</div><div class="cust-name">' + display + '</div></div>',
-          iconSize: [120, 48],
-          iconAnchor: [60, 44]
+          iconSize: [130, 58],
+          iconAnchor: [65, 58],
+          popupAnchor: [0, -58]
         });
       }
 
@@ -66,8 +68,9 @@
         return L.divIcon({
           className: 'leaflet-rider-marker',
           html: '<div class="rider-pin-inner"><div class="rider-pulse"></div><span>🛵</span><span>Courier ' + (orderNumber ? esc(orderNumber.slice(-4)) : '') + '</span></div>',
-          iconSize: [94, 32],
-          iconAnchor: [47, 16]
+          iconSize: [110, 36],
+          iconAnchor: [55, 36],
+          popupAnchor: [0, -36]
         });
       }
 

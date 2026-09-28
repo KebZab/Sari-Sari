@@ -187,4 +187,13 @@ context.applyCloudSnapshot('sst_orders', 'orders', {
 assert.deepEqual(JSON.parse(memory.get('sst_orders')).map(o => o.id).sort(),
   [existingOrders[0].id, anotherOrder.id, thirdOrder.id].sort());
 
+// Leaflet anchors and marker CSS must place the visible pin at the coordinates.
+context.L = { divIcon(options) { return options; } };
+for (const icon of [context.createStoreIcon(), context.createCustomerIcon('Juan', 'ORD-1', true), context.createRiderIcon('ORD-1')]) {
+  assert.equal(icon.iconAnchor[0], icon.iconSize[0] / 2);
+  assert.equal(icon.iconAnchor[1], icon.iconSize[1]);
+}
+const mapCss = fs.readFileSync('css/maps-modals.css', 'utf8');
+assert.doesNotMatch(mapCss, /translate\(-50%,\s*-(?:50|100)%\)/);
+
 console.log('Smoke check passed: auth, customer/admin navigation, checkout, delivery routing, and multi-user order sync.');
