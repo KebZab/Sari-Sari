@@ -43,6 +43,16 @@ npx vercel --prod
 
 Vercel will serve `sari-sari-store.html` at the root domain (`/`), provide automatic HTTPS (required for GPS geolocation and maps), and connect directly to the Cloud Firestore database.
 
+## Seeded Accounts
+
+The application automatically seeds default accounts for testing. Use these credentials to log in:
+
+| Role | Name | Phone Number (Username) | Password | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Admin** | Aling Nena (Store Owner) | `09171234567` | `admin123` | Full access to Admin Dashboard, Inventory, Products, Orders, and Live Store GPS Setup. |
+| **Customer** | Juan Dela Cruz | `09201112222` | `juan123` | Customer account (Pre-configured address: 123 Mabini St., Barangay San Isidro). |
+| **Customer** | Maria Santos | `09183334444` | `maria123` | Customer account (Pre-configured address: 45 Taft Ave., Barangay San Isidro). |
+
 ## Current limitations
 
 This is a demo, **not ready for public production use**. It seeds demo accounts, stores passwords in browser storage and Firestore, and `firestore.rules` currently allows all reads and writes. Replace the authentication and database security model before deploying it for real customers. The smoke check covers local ordering flows; it does not verify device GPS or live Firebase synchronization.

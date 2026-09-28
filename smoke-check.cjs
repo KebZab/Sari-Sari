@@ -31,7 +31,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(script, context);
-assert.match(app.innerHTML, /Demo accounts/);
+assert.match(app.innerHTML, /Aling Nena's/);
 assert.equal(JSON.parse(memory.get('sst_products')).length, 28);
 
 inputs['login-phone'] = { value: '09201112222' };
