@@ -177,7 +177,7 @@ var App = window.App = window.App || {};
         if (vals.confirm !== vals.password) err.confirm = 'Passwords do not match.';
         if (Object.keys(err).length) {
           state.registerError = err;
-          render();
+          App.showRegisterErrors(err);
           return false;
         }
         var users = getUsers();
@@ -195,6 +195,46 @@ var App = window.App = window.App || {};
         render(false);
         toast('Account created. Welcome, ' + newUser.fullName.split(' ')[0] + '!');
         return false;
+      };
+
+      App.showRegisterErrors = function (errors) {
+        var fields = {
+          fullName: 'reg-fullname', phone: 'reg-phone', barangay: 'reg-barangay',
+          houseStreet: 'reg-housestreet', landmark: 'reg-landmark',
+          password: 'reg-password', confirm: 'reg-confirm'
+        };
+        Object.keys(fields).forEach(function (key) {
+          var input = document.getElementById(fields[key]);
+          if (!input || !input.parentElement) return;
+          var field = input.parentElement;
+          field.classList.toggle('has-error', !!errors[key]);
+          var message = field.querySelector('.field-error');
+          if (errors[key]) {
+            if (!message) {
+              message = document.createElement('div');
+              message.className = 'field-error';
+              field.appendChild(message);
+            }
+            message.textContent = errors[key];
+          } else if (message) {
+            message.remove();
+          }
+        });
+      };
+
+      App.clearRegisterError = function (e) {
+        var field = e.target && e.target.parentElement;
+        if (!field || !field.classList || !field.classList.contains('has-error')) return;
+        field.classList.remove('has-error');
+        var message = field.querySelector('.field-error');
+        if (message) message.remove();
+        var errorKeys = {
+          'reg-fullname': 'fullName', 'reg-phone': 'phone',
+          'reg-barangay': 'barangay', 'reg-housestreet': 'houseStreet',
+          'reg-landmark': 'landmark', 'reg-password': 'password',
+          'reg-confirm': 'confirm'
+        };
+        delete state.registerError[errorKeys[e.target.id]];
       };
 
       /* ---- Google Authentication ---- */

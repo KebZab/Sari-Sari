@@ -86,6 +86,38 @@ for (const scriptFile of modularScripts) {
 assert.match(app.innerHTML, /NelGlenn's/);
 assert.equal(JSON.parse(memory.get('sst_products')).length, 28);
 
+// Invalid registration must show errors without replacing the form or its entered values.
+context.window.App.go('auth-register');
+const registerHtml = app.innerHTML;
+const registerValues = {
+  'reg-fullname': 'Test Customer', 'reg-phone': 'bad',
+  'reg-barangay': 'San Isidro', 'reg-housestreet': '123 Main St',
+  'reg-landmark': 'Near plaza', 'reg-password': 'secret12', 'reg-confirm': 'different'
+};
+for (const [id, value] of Object.entries(registerValues)) {
+  const classes = new Set();
+  const field = {
+    message: null,
+    classList: {
+      toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); },
+      contains(name) { return classes.has(name); },
+      remove(name) { classes.delete(name); }
+    },
+    querySelector() { return this.message; },
+    appendChild(message) { this.message = message; message.remove = () => { this.message = null; }; }
+  };
+  inputs[id] = { value, parentElement: field };
+}
+context.window.App.handleRegister({ preventDefault() {} });
+assert.equal(app.innerHTML, registerHtml);
+assert.equal(inputs['reg-fullname'].value, 'Test Customer');
+assert.equal(inputs['reg-phone'].parentElement.message.textContent, 'Enter a valid phone number.');
+assert.equal(inputs['reg-confirm'].parentElement.message.textContent, 'Passwords do not match.');
+inputs['reg-phone'].value = '09123456789';
+context.window.App.clearRegisterError({ target: inputs['reg-phone'] });
+assert.equal(inputs['reg-phone'].parentElement.message, null);
+context.window.App.go('auth-login');
+
 // Customer login
 inputs['login-phone'] = { value: '09201112222' };
 inputs['login-password'] = { value: 'juan123' };

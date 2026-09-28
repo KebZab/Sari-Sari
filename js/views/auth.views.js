@@ -44,7 +44,7 @@ var GOOGLE_ICON_SVG = '<svg class="google-icon" viewBox="0 0 24 24" width="18" h
           '<span>Sign up with Google</span>' +
           '</button>' +
           '<div class="auth-divider"><span>or register with phone</span></div>' +
-          '<form onsubmit="return App.handleRegister(event)">' +
+          '<form onsubmit="return App.handleRegister(event)" oninput="App.clearRegisterError(event)">' +
           '<div class="field' + ef('fullName') + '"><label>Full name</label><input id="reg-fullname" type="text" placeholder="Juan Dela Cruz">' + em('fullName') + '</div>' +
           '<div class="field' + ef('phone') + '"><label>Phone number</label><input id="reg-phone" type="tel" placeholder="09XXXXXXXXX">' + em('phone') + '</div>' +
           '<div class="field' + ef('barangay') + '"><label>Barangay</label><input id="reg-barangay" type="text" placeholder="Barangay San Isidro" value="' + esc(state.detectedBarangay || '') + '">' + em('barangay') + '</div>' +
