@@ -43,6 +43,18 @@ npx vercel --prod
 
 Vercel will serve `sari-sari-store.html` at the root domain (`/`), provide automatic HTTPS (required for GPS geolocation and maps), and connect directly to the Cloud Firestore database.
 
+## Google Authentication
+
+Customers can also sign in using **Sign in with Google**:
+- Uses **Firebase Authentication** (`sarisaristore-ffa71`) via Google OAuth popup or redirect.
+- New Google users are automatically provisioned an account with their Google full name, email, and avatar.
+- To enable live Google Sign-in on Firebase:
+  1. Open [Firebase Console](https://console.firebase.google.com/project/sarisaristore-ffa71/authentication/providers).
+  2. Navigate to **Authentication > Sign-in method**.
+  3. Click **Google**, toggle **Enable**, select the support email, and save.
+  4. In **Settings > Authorized domains**, ensure `sari-sari-mu.vercel.app` (or your custom domain) is added.
+- An **Instant Demo Account** option is also built-in for testing the Google customer experience without delay.
+
 ## Seeded Accounts
 
 The application automatically seeds default accounts for testing. Use these credentials to log in:
@@ -52,6 +64,7 @@ The application automatically seeds default accounts for testing. Use these cred
 | **Admin** | Aling Nena (Store Owner) | `09171234567` | `admin123` | Full access to Admin Dashboard, Inventory, Products, Orders, and Live Store GPS Setup. |
 | **Customer** | Juan Dela Cruz | `09201112222` | `juan123` | Customer account (Pre-configured address: 123 Mabini St., Barangay San Isidro). |
 | **Customer** | Maria Santos | `09183334444` | `maria123` | Customer account (Pre-configured address: 45 Taft Ave., Barangay San Isidro). |
+| **Customer** | Sign in with Google | *(Google Account)* | *(OAuth)* | 1-Tap Google login; auto-creates customer profile. |
 
 ## Current limitations
 
