@@ -1,7 +1,55 @@
 /* ================= GEOLOCATION & REVERSE GEOCODING ENGINE ================= */
 var App = window.App = window.App || {};
 
-/* ================= INITIAL LOCATION & REVERSE GEOCODING ENGINE ================= */
+/* ================= 2-TIER GEOLOCATION ENGINE (HIGH ACCURACY -> CELL/WIFI FALLBACK) ================= */
+      function tryGeolocation(onSuccess, onError, options) {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          if (onError) onError({ code: 0, message: 'Geolocation not supported' });
+          return;
+        }
+
+        var highOpts = Object.assign({
+          enableHighAccuracy: true,
+          timeout: 9000,
+          maximumAge: 10000
+        }, options || {});
+
+        var lowOpts = {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 120000
+        };
+
+        // Attempt 1: High accuracy GPS
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            onSuccess(pos);
+          },
+          function (firstErr) {
+            console.warn("[Geolocation] High-accuracy attempt failed/timed out:", firstErr && firstErr.message);
+            // If user explicitly denied permission, report immediately without retrying low accuracy
+            if (firstErr && firstErr.code === 1) { // PERMISSION_DENIED
+              if (onError) onError(firstErr);
+              return;
+            }
+            // Attempt 2: Standard/network accuracy (WiFi / Cellular triangulation)
+            navigator.geolocation.getCurrentPosition(
+              function (pos) {
+                console.log("[Geolocation] Fallback standard accuracy succeeded:", pos.coords.latitude, pos.coords.longitude);
+                onSuccess(pos);
+              },
+              function (secondErr) {
+                console.warn("[Geolocation] Fallback standard accuracy also failed:", secondErr && secondErr.message);
+                if (onError) onError(secondErr || firstErr);
+              },
+              lowOpts
+            );
+          },
+          highOpts
+        );
+      }
+
+/* ================= REVERSE GEOCODING ENGINE ================= */
       function reverseGeocode(lat, lng, callback) {
         if (typeof fetch === 'undefined') { callback(null); return; }
         try {
@@ -38,37 +86,6 @@ var App = window.App = window.App || {};
         }
       }
 
-      function renderLocationModal() {
-        var isLocating = state.locationStatus === 'requesting';
-        var hasCoords = !!state.userCoords;
-        var place = state.userPlaceName || (hasCoords ? 'GPS: ' + state.userCoords.lat.toFixed(5) + ', ' + state.userCoords.lng.toFixed(5) : '');
-        var acc = hasCoords && state.userCoords.accuracy ? ' (~' + state.userCoords.accuracy + 'm accuracy)' : '';
-
-        return '' +
-          '<div class="overlay-bg center" style="z-index:9999;" onclick="if(event.target===this) App.dismissLocationModal()">' +
-          '<div class="loc-modal-card">' +
-          '<div class="loc-icon-bubble">📍</div>' +
-          '<div class="loc-title">' + (hasCoords ? 'Actual Location Detected' : 'Allow Location Access') + '</div>' +
-          '<div class="loc-subtitle">' +
-          (hasCoords
-            ? 'We found your actual location! We will use this to deliver your orders right to your doorstep with accurate road routing.'
-            : 'Allow location access so Aling Nena\'s Store can find your actual place, calculate delivery routes, and deliver orders right to your doorstep.') +
-          '</div>' +
-          (hasCoords
-            ? '<div class="loc-detected-badge" style="justify-content:center;"><span>✓</span><span>' + esc(place + acc) + '</span></div>'
-            : '') +
-          '<div class="loc-actions">' +
-          '<button class="loc-btn-primary" onclick="App.requestLocation(true)" ' + (isLocating ? 'disabled style="opacity:0.8;"' : '') + '>' +
-          (isLocating ? '<span>📡</span> Detecting Actual Location...' : (hasCoords ? '<span>📍</span> Update My Location' : '<span>📍</span> Allow Location Access')) +
-          '</button>' +
-          '<button class="loc-btn-secondary" onclick="App.dismissLocationModal()">' +
-          (hasCoords ? 'Continue to Store' : 'Skip &amp; Set Pin Manually Later') +
-          '</button>' +
-          '</div>' +
-          '</div>' +
-          '</div>';
-      }
-
       App.promptLocation = function (forceModal) {
         state.locationModalOpen = true;
         render();
@@ -95,7 +112,7 @@ var App = window.App = window.App || {};
         if (showToast) toast('📡 Requesting location permission...');
         render();
 
-        navigator.geolocation.getCurrentPosition(function (pos) {
+        tryGeolocation(function (pos) {
           var lat = pos.coords.latitude;
           var lng = pos.coords.longitude;
           var accuracy = Math.round(pos.coords.accuracy || 15);
@@ -132,44 +149,46 @@ var App = window.App = window.App || {};
             }
             state.locationModalOpen = false;
             render();
-            toast('📍 Location locked: ' + (state.userPlaceName || 'Live GPS') + ' (~' + accuracy + 'm accuracy)');
+            if (showToast) toast('📍 Location locked: ' + (state.userPlaceName || 'Live GPS') + ' (~' + accuracy + 'm accuracy)');
           });
 
           if (activeMaps.checkout) {
-            activeMaps.checkout.flyTo([lat, lng], 17, { duration: 1.2 });
-            if (activeMaps.checkoutMarker) {
-              activeMaps.checkoutMarker.setLatLng([lat, lng]);
-              if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) activeMaps.checkoutMarker.addTo(activeMaps.checkout);
-              activeMaps.checkoutMarker.bindPopup('🟢 <b>Your Live GPS Locked</b><br>' + esc(state.userPlaceName || 'Actual Location')).openPopup();
-            }
-            if (activeMaps.checkoutAccuracy) activeMaps.checkout.removeLayer(activeMaps.checkoutAccuracy);
-            activeMaps.checkoutAccuracy = L.circle([lat, lng], {
-              radius: Math.min(120, accuracy),
-              color: '#2DA56E',
-              fillColor: '#2DA56E',
-              fillOpacity: 0.18,
-              weight: 1.5
-            }).addTo(activeMaps.checkout);
-            if (activeMaps.checkoutUpdateRoute) activeMaps.checkoutUpdateRoute(lat, lng);
+            try {
+              activeMaps.checkout.flyTo([lat, lng], 17, { duration: 1.0 });
+              if (activeMaps.checkoutMarker) {
+                activeMaps.checkoutMarker.setLatLng([lat, lng]);
+                if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) activeMaps.checkoutMarker.addTo(activeMaps.checkout);
+                activeMaps.checkoutMarker.bindPopup('🟢 <b>Your Live GPS Locked</b><br>' + esc(state.userPlaceName || 'Actual Location')).openPopup();
+              }
+              if (activeMaps.checkoutAccuracy) activeMaps.checkout.removeLayer(activeMaps.checkoutAccuracy);
+              activeMaps.checkoutAccuracy = L.circle([lat, lng], {
+                radius: Math.min(120, accuracy),
+                color: '#2DA56E',
+                fillColor: '#2DA56E',
+                fillOpacity: 0.18,
+                weight: 1.5
+              }).addTo(activeMaps.checkout);
+              if (activeMaps.checkoutUpdateRoute) activeMaps.checkoutUpdateRoute(lat, lng);
+            } catch (e) {}
           }
 
           setTimeout(function () {
             state.locationModalOpen = false;
             render();
-          }, 400);
+          }, 350);
 
         }, function (err) {
           console.warn("Location permission notice:", err);
-          state.locationStatus = 'denied';
+          state.locationStatus = (err && err.code === 1) ? 'denied' : 'unavailable';
           state.locationModalOpen = false;
           render();
           if (showToast) {
-            toast('Location permission denied or unavailable. Tap map on checkout to set pin!');
+            if (err && err.code === 1) {
+              toast('Location permission denied. Tap 🔒 in your address bar to enable, or tap the map to place your pin!');
+            } else {
+              toast('Location unavailable. Tap or drag the pin directly on the map!');
+            }
           }
-        }, {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 0
         });
       };
 
@@ -210,59 +229,126 @@ var App = window.App = window.App || {};
         updateCheckoutGpsUi();
 
         if (!navigator.geolocation) {
-          if (showToast) toast('Geolocation not supported by this browser. You can tap or drag the pin on the map!');
+          if (showToast) toast('Geolocation not supported by this browser. Tap or drag the pin on the map!');
           state.checkoutGpsStatus = state.checkoutCoords ? 'manual' : 'idle';
           if (btnText) btnText.textContent = 'Detect My GPS';
           updateCheckoutGpsUi();
           return;
         }
 
-        navigator.geolocation.getCurrentPosition(function (pos) {
+        tryGeolocation(function (pos) {
           var lat = pos.coords.latitude;
           var lng = pos.coords.longitude;
           var accuracy = Math.round(pos.coords.accuracy || 15);
-          state.checkoutCoords = {
+          var coords = {
             lat: lat,
             lng: lng,
             accuracy: accuracy,
             manual: false,
             timestamp: new Date().toISOString()
           };
+          state.checkoutCoords = coords;
+          state.userCoords = coords;
           state.checkoutGpsStatus = 'locked';
+          dbSet('sst_user_coords', coords);
           if (btnText) btnText.textContent = 'GPS Locked ✓';
 
           if (activeMaps.checkout) {
-            activeMaps.checkout.flyTo([lat, lng], 17, { duration: 1.2 });
-            if (activeMaps.checkoutMarker) {
-              activeMaps.checkoutMarker.setLatLng([lat, lng]);
-              if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) activeMaps.checkoutMarker.addTo(activeMaps.checkout);
-              activeMaps.checkoutMarker.bindPopup('🟢 <b>Your Live GPS Locked</b><br>Accurate to ~' + accuracy + 'm').openPopup();
-            }
-            if (activeMaps.checkoutAccuracy) {
-              activeMaps.checkout.removeLayer(activeMaps.checkoutAccuracy);
-            }
-            activeMaps.checkoutAccuracy = L.circle([lat, lng], {
-              radius: Math.min(120, accuracy),
-              color: '#2DA56E',
-              fillColor: '#2DA56E',
-              fillOpacity: 0.18,
-              weight: 1.5
-            }).addTo(activeMaps.checkout);
+            try {
+              activeMaps.checkout.invalidateSize();
+              activeMaps.checkout.flyTo([lat, lng], 17, { duration: 1.0 });
+              if (activeMaps.checkoutMarker) {
+                activeMaps.checkoutMarker.setLatLng([lat, lng]);
+                if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) {
+                  activeMaps.checkoutMarker.addTo(activeMaps.checkout);
+                }
+                activeMaps.checkoutMarker.bindPopup('🟢 <b>Your Live GPS Locked</b><br>Accurate to ~' + accuracy + 'm').openPopup();
+              }
+              if (activeMaps.checkoutAccuracy) {
+                activeMaps.checkout.removeLayer(activeMaps.checkoutAccuracy);
+              }
+              activeMaps.checkoutAccuracy = L.circle([lat, lng], {
+                radius: Math.min(120, accuracy),
+                color: '#2DA56E',
+                fillColor: '#2DA56E',
+                fillOpacity: 0.18,
+                weight: 1.5
+              }).addTo(activeMaps.checkout);
 
-            if (activeMaps.checkoutUpdateRoute) activeMaps.checkoutUpdateRoute(lat, lng);
+              if (activeMaps.checkoutUpdateRoute) activeMaps.checkoutUpdateRoute(lat, lng);
+            } catch (mapErr) {
+              console.warn("[Checkout Map] GPS update error:", mapErr);
+            }
           }
           updateCheckoutGpsUi();
+
+          // Reverse geocode to auto-fill address
+          reverseGeocode(lat, lng, function (res) {
+            if (res) {
+              state.userPlaceName = res.placeName;
+              state.detectedBarangay = res.barangay;
+              state.detectedStreet = res.street;
+              dbSet('sst_user_place', res.placeName);
+              if (res.barangay) dbSet('sst_user_brgy', res.barangay);
+              if (res.street) dbSet('sst_user_street', res.street);
+
+              // Auto-fill delivery address on customer object if empty or default
+              var user = currentUser();
+              if (user) {
+                var users = getUsers();
+                var u = users.filter(function (x) { return x.id === user.id; })[0];
+                if (u) {
+                  var modified = false;
+                  if (!u.barangay || u.barangay === 'Barangay San Isidro') { u.barangay = res.barangay || u.barangay; modified = true; }
+                  if (!u.houseStreet || u.houseStreet === '123 Mabini St.') { u.houseStreet = res.street || u.houseStreet; modified = true; }
+                  if (!u.landmark && res.placeName) { u.landmark = 'Near ' + res.placeName; modified = true; }
+                  u.lat = lat;
+                  u.lng = lng;
+                  if (modified) saveUsers(users);
+                }
+              }
+              var chkBrgy = document.getElementById('chk-barangay');
+              if (chkBrgy && (!chkBrgy.value || chkBrgy.value === 'Barangay San Isidro')) chkBrgy.value = res.barangay || '';
+              var chkStreet = document.getElementById('chk-housestreet');
+              if (chkStreet && (!chkStreet.value || chkStreet.value === '123 Mabini St.')) chkStreet.value = res.street || '';
+              var chkLandmark = document.getElementById('chk-landmark');
+              if (chkLandmark && !chkLandmark.value && res.placeName) chkLandmark.value = 'Near ' + res.placeName;
+            }
+            updateCheckoutGpsUi();
+          });
+
           if (showToast) toast('📍 Live GPS location locked (~' + accuracy + 'm accuracy)');
         }, function (err) {
-          console.warn("GPS detection failed/denied:", err);
+          console.warn("GPS detection failed:", err);
+          // If state.userCoords is already known from startup or storage, adopt it as a fallback!
+          if (state.userCoords && Number.isFinite(state.userCoords.lat) && Number.isFinite(state.userCoords.lng)) {
+            state.checkoutCoords = state.userCoords;
+            state.checkoutGpsStatus = 'locked';
+            if (btnText) btnText.textContent = 'GPS Locked ✓';
+            if (activeMaps.checkout) {
+              try {
+                activeMaps.checkout.flyTo([state.userCoords.lat, state.userCoords.lng], 16);
+                if (activeMaps.checkoutMarker) {
+                  activeMaps.checkoutMarker.setLatLng([state.userCoords.lat, state.userCoords.lng]);
+                  if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) activeMaps.checkoutMarker.addTo(activeMaps.checkout);
+                }
+              } catch (e) {}
+            }
+            updateCheckoutGpsUi();
+            if (showToast) toast('📍 Using detected location. You can also tap the map to fine-tune your pin.');
+            return;
+          }
+
           state.checkoutGpsStatus = state.checkoutCoords ? 'manual' : 'idle';
           if (btnText) btnText.textContent = 'Detect My GPS';
           updateCheckoutGpsUi();
-          if (showToast) toast('Location permission denied or unavailable. Tap or drag the pin on the map!');
-        }, {
-          enableHighAccuracy: true,
-          timeout: 8000,
-          maximumAge: 5000
+          if (showToast) {
+            if (err && err.code === 1) {
+              toast('Location access blocked in browser. Tap 🔒 in your address bar to allow, or tap the map to place your pin!');
+            } else {
+              toast('GPS signal weak or unavailable. Tap or drag the pin directly on the map to set your gate!');
+            }
+          }
         });
       };
 
@@ -273,7 +359,7 @@ var App = window.App = window.App || {};
           return;
         }
         if (!silent) toast('📡 Detecting admin device GPS location...');
-        navigator.geolocation.getCurrentPosition(function (pos) {
+        tryGeolocation(function (pos) {
           var lat = pos.coords.latitude;
           var lng = pos.coords.longitude;
           var accuracy = Math.round(pos.coords.accuracy || 10);
@@ -287,11 +373,13 @@ var App = window.App = window.App || {};
           render();
         }, function (err) {
           console.warn("Admin GPS error:", err);
-          if (!silent) toast('Could not detect GPS: ' + (err.message || 'Permission denied'));
-        }, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+          if (!silent) {
+            if (err && err.code === 1) {
+              toast('Could not detect GPS: Permission denied. Check browser location settings.');
+            } else {
+              toast('Could not detect GPS fix. Please ensure location services are enabled on this device.');
+            }
+          }
         });
       };
 

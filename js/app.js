@@ -1,8 +1,5 @@
 /* ================= APP ACTIONS & CONTROLLER ================= */
-var App = window.App || {};
-
-/* ================= APP ACTIONS (exposed as window.App) ================= */
-      var App = {};
+var App = window.App = window.App || {};
 
       App.go = function (view) {
         destroyMap('checkout');
@@ -512,8 +509,24 @@ var App = window.App || {};
           }
         }
         state.cartOpen = false;
-        state.addressEditing = false;
+        var user = currentUser();
+        state.addressEditing = (!user || !user.barangay || !user.houseStreet || !user.phone);
         state.checkoutInstructions = '';
+        if (!state.checkoutCoords) {
+          if (state.userCoords && Number.isFinite(state.userCoords.lat) && Number.isFinite(state.userCoords.lng)) {
+            state.checkoutCoords = state.userCoords;
+            state.checkoutGpsStatus = 'locked';
+          } else if (user && Number.isFinite(user.lat) && Number.isFinite(user.lng)) {
+            state.checkoutCoords = {
+              lat: user.lat,
+              lng: user.lng,
+              accuracy: null,
+              manual: false,
+              timestamp: new Date().toISOString()
+            };
+            state.checkoutGpsStatus = 'locked';
+          }
+        }
         App.go('customer-checkout');
       };
       App.editCheckoutAddress = function () { state.addressEditing = true; render(true); };
@@ -539,6 +552,21 @@ var App = window.App || {};
         if (!user.barangay || !user.houseStreet || !user.phone) {
           toast('Please complete your delivery address before checking out.');
           state.addressEditing = true; render(true); return;
+        }
+        if (!state.checkoutCoords || !Number.isFinite(state.checkoutCoords.lat) || !Number.isFinite(state.checkoutCoords.lng)) {
+          if (state.userCoords && Number.isFinite(state.userCoords.lat) && Number.isFinite(state.userCoords.lng)) {
+            state.checkoutCoords = state.userCoords;
+            state.checkoutGpsStatus = 'locked';
+          } else if (user && Number.isFinite(user.lat) && Number.isFinite(user.lng)) {
+            state.checkoutCoords = {
+              lat: user.lat,
+              lng: user.lng,
+              accuracy: null,
+              manual: false,
+              timestamp: new Date().toISOString()
+            };
+            state.checkoutGpsStatus = 'locked';
+          }
         }
         if (!state.checkoutCoords || !Number.isFinite(state.checkoutCoords.lat) || !Number.isFinite(state.checkoutCoords.lng)) {
           toast('Set your real drop-off location using GPS or by tapping the map before placing the order.');

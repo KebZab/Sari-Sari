@@ -297,8 +297,12 @@
           publishRiderLocation(orderId, loc);
         }, function (err) {
           console.warn("[Rider Phone GPS] watch error:", err);
-          toast('Rider GPS unavailable: ' + (err.message || 'location error'));
-          stopRiderDeviceGps();
+          if (err && err.code === 1) { // PERMISSION_DENIED
+            toast('Rider GPS permission denied. Please allow location in your browser settings.');
+            stopRiderDeviceGps();
+          } else {
+            console.warn("[Rider Phone GPS] Temporary signal drop or timeout, maintaining watch stream.");
+          }
         }, {
           enableHighAccuracy: true,
           maximumAge: 1000,
@@ -755,11 +759,32 @@
 
         var user = currentUser();
         var store = getStoreLocation();
-        var defaultPos = state.checkoutCoords ? [state.checkoutCoords.lat, state.checkoutCoords.lng] : (hasStoreGps(store) ? [store.lat, store.lng] : [0, 0]);
+
+        // Adopt pre-detected user coordinates or customer profile coordinates if checkoutCoords is null
+        if (!state.checkoutCoords) {
+          if (state.userCoords && Number.isFinite(state.userCoords.lat) && Number.isFinite(state.userCoords.lng)) {
+            state.checkoutCoords = state.userCoords;
+            state.checkoutGpsStatus = 'locked';
+          } else if (user && Number.isFinite(user.lat) && Number.isFinite(user.lng)) {
+            state.checkoutCoords = {
+              lat: user.lat,
+              lng: user.lng,
+              accuracy: null,
+              manual: false,
+              timestamp: new Date().toISOString()
+            };
+            state.checkoutGpsStatus = 'locked';
+          }
+        }
+
+        var defaultPos = state.checkoutCoords
+          ? [state.checkoutCoords.lat, state.checkoutCoords.lng]
+          : (hasStoreGps(store) ? [store.lat, store.lng] : [14.5995, 120.9842]);
+        var initialZoom = state.checkoutCoords || hasStoreGps(store) ? 16 : 14;
 
         var map = L.map(container, {
           center: defaultPos,
-          zoom: state.checkoutCoords || hasStoreGps(store) ? 16 : 2,
+          zoom: initialZoom,
           zoomControl: false,
           attributionControl: false
         });
@@ -849,11 +874,6 @@
         setTimeout(function () {
           if (activeMaps.checkout) activeMaps.checkout.invalidateSize();
         }, 120);
-
-        // If customer hasn't locked GPS yet, trigger automatic detection prompt
-        if (!state.checkoutCoords && navigator.geolocation) {
-          App.detectCustomerGps(false);
-        }
       }
 
       function updateCheckoutGpsUi() {

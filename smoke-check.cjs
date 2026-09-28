@@ -53,7 +53,19 @@ const context = {
     setItem(k, v) { memory.set(k, v); },
     removeItem(k) { memory.delete(k); }
   },
-  navigator: {},
+  navigator: {
+    geolocation: {
+      getCurrentPosition(success, error, opts) {
+        success({
+          coords: {
+            latitude: 14.5995,
+            longitude: 120.9842,
+            accuracy: 12
+          }
+        });
+      }
+    }
+  },
   document: {
     getElementById(id) { return id === 'app' ? app : id === 'toast-wrap' ? toastWrap : inputs[id] || null; },
     createElement() { return { style: {}, remove() {}, textContent: '' }; }
@@ -88,12 +100,20 @@ for (const item of JSON.parse(memory.get('sst_products'))) {
 context.window.App.addToCart(product.id);
 assert.equal(JSON.parse(memory.get('sst_cart_' + JSON.parse(memory.get('sst_session')).userId))[0].qty, 1);
 context.window.App.goCheckout();
-context.window.state.checkoutCoords = { lat: 10.5, lng: 123.9, manual: true };
+
+// Verify Buyer Detect GPS
+context.window.state.checkoutCoords = null;
+context.window.App.detectCustomerGps(false);
+assert.ok(context.window.state.checkoutCoords, 'Buyer detect GPS must set checkoutCoords');
+assert.equal(context.window.state.checkoutCoords.lat, 14.5995);
+assert.equal(context.window.state.checkoutCoords.lng, 120.9842);
+assert.equal(context.window.state.checkoutGpsStatus, 'locked');
+
 context.window.App.placeOrder();
 let orders = JSON.parse(memory.get('sst_orders'));
 assert.equal(orders.length, 1);
-assert.equal(orders[0].delivery.lat, 10.5);
-assert.equal(orders[0].delivery.lng, 123.9);
+assert.equal(orders[0].delivery.lat, 14.5995);
+assert.equal(orders[0].delivery.lng, 120.9842);
 
 // Admin login & Order confirmation
 context.window.App.logout();
