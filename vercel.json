@@ -3,20 +3,16 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/sari-sari-store.html"
+      "source": "/sari-sari-store",
+      "destination": "/index.html"
     },
     {
-      "source": "/index.html",
-      "destination": "/sari-sari-store.html"
-    },
-    {
-      "source": "/index",
-      "destination": "/sari-sari-store.html"
+      "source": "/sari-sari-store.html",
+      "destination": "/index.html"
     },
     {
       "source": "/store",
-      "destination": "/sari-sari-store.html"
+      "destination": "/index.html"
     }
   ],
   "headers": [

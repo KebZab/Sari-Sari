@@ -3,6 +3,9 @@ const vm = require('vm');
 const assert = require('assert');
 
 const html = fs.readFileSync('sari-sari-store.html', 'utf8');
+if (fs.existsSync('index.html')) {
+  assert.equal(fs.readFileSync('index.html', 'utf8'), html, 'index.html must match sari-sari-store.html');
+}
 const script = html.match(/<script>\s*([\s\S]*?)<\/script>\s*<\/body>/)[1];
 new vm.Script(script);
 const memory = new Map();
