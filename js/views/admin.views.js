@@ -61,6 +61,54 @@
         var lowStock = products.filter(function (p) { return p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD; });
         var outStock = products.filter(function (p) { return p.stock <= 0; });
 
+        var totalLowItems = lowStock.length + outStock.length;
+        var lowStockAlert = '';
+        if (totalLowItems > 0) {
+          lowStockAlert = '' +
+            '<div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-left:5px solid var(--amber-500);padding:12px 16px;border-radius:10px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">' +
+              '<div>' +
+                '<strong style="color:var(--amber-700);font-size:14px;display:flex;align-items:center;gap:6px;">⚠️ Low Stock Alert</strong>' +
+                '<div style="font-size:12.5px;color:var(--ink-700);margin-top:2px;">' + totalLowItems + ' product(s) are low or out of stock!</div>' +
+              '</div>' +
+              '<button class="btn btn-warning btn-sm" style="font-weight:700;" onclick="App.restockAllLowItems()">' + ICON.plus + ' Restock All (+20)</button>' +
+            '</div>';
+        }
+
+        var productSalesMap = {};
+        orders.forEach(function (o) {
+          if (o.status !== 'Cancelled') {
+            (o.items || []).forEach(function (it) {
+              if (!productSalesMap[it.productId]) {
+                productSalesMap[it.productId] = { name: it.name, qty: 0, revenue: 0 };
+              }
+              productSalesMap[it.productId].qty += it.qty;
+              productSalesMap[it.productId].revenue += (it.price * it.qty);
+            });
+          }
+        });
+
+        var topProducts = Object.values(productSalesMap).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
+        var maxQty = topProducts.length > 0 ? topProducts[0].qty : 1;
+
+        var analyticsHtml = '' +
+          '<div class="card" style="margin-top:16px;margin-bottom:20px;padding:16px;">' +
+            '<div style="font-weight:800;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:6px;">📈 Top-Selling Products Leaderboard</div>' +
+            (topProducts.length === 0 ? '<div style="font-size:13px;color:var(--ink-500);">No sales data recorded yet.</div>' :
+              topProducts.map(function (tp, idx) {
+                var pct = Math.round((tp.qty / maxQty) * 100);
+                return '' +
+                  '<div style="margin-bottom:12px;">' +
+                    '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:4px;">' +
+                      '<span>#' + (idx + 1) + ' ' + esc(tp.name) + '</span>' +
+                      '<span style="color:var(--ink-600);">' + tp.qty + ' sold &middot; <strong style="color:var(--emerald-600);">' + peso(tp.revenue) + '</strong></span>' +
+                    '</div>' +
+                    '<div style="background:var(--surface-2);height:8px;border-radius:4px;overflow:hidden;">' +
+                      '<div style="background:var(--emerald-500);height:100%;width:' + pct + '%;"></div>' +
+                    '</div>' +
+                  '</div>';
+              }).join('')) +
+          '</div>';
+
         var stats = [
           [ICON.orders, "Today's Orders", todays.length, ''],
           [ICON.clock, 'Pending Orders', pending.length, pending.length > 0 ? 'warn' : ''],
@@ -86,7 +134,7 @@
             '</div>';
         }).join('');
 
-        return '<div class="stat-grid">' + statHtml + '</div>' +
+        return lowStockAlert + '<div class="stat-grid">' + statHtml + '</div>' + analyticsHtml +
           '<div class="section-title">Recent orders</div>' +
           '<div class="table-list">' + recentHtml + '</div>';
       }
@@ -329,9 +377,12 @@
                       '<div style="font-size:12.5px;color:var(--ink-600);">' + esc(o.delivery.phone) + '</div>' +
                     '</div>' +
                   '</div>' +
-                  '<a href="tel:' + esc(o.delivery.phone) + '" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 12px;">' +
-                    ICON.phone + ' Call' +
-                  '</a>' +
+                  '<div style="display:flex;gap:6px;align-items:center;">' +
+                    '<button type="button" class="btn btn-outline btn-sm" onclick="App.printReceipt(\'' + o.id + '\')" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:6px 10px;">🧾 Receipt</button>' +
+                    '<a href="tel:' + esc(o.delivery.phone) + '" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 12px;">' +
+                      ICON.phone + ' Call' +
+                    '</a>' +
+                  '</div>' +
                 '</div>' +
                 '<div class="divider" style="margin:8px 0;"></div>' +
                 '<div class="info-row"><span class="k">📍 Drop-off Address</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +

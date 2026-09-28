@@ -831,6 +831,104 @@ var App = window.App = window.App || {};
         render(true);
       };
 
+      App.reorderOrder = function (orderId) {
+        var o = getOrders().filter(function (x) { return x.id === orderId; })[0];
+        if (!o || !o.items || !o.items.length) {
+          toast('Order details not found.');
+          return;
+        }
+        var prods = getProducts();
+        var addedCount = 0;
+        o.items.forEach(function (it) {
+          var p = prods.filter(function (x) { return x.id === it.productId; })[0];
+          if (p && p.stock > 0) {
+            var qtyToAdd = Math.min(it.qty, p.stock);
+            App.addToCart(p.id, qtyToAdd);
+            addedCount++;
+          }
+        });
+        if (addedCount > 0) {
+          toast('Re-ordered ' + addedCount + ' item(s) into your cart!');
+          App.go('customer-cart');
+        } else {
+          toast('Selected items are currently out of stock.');
+        }
+      };
+
+      App.printReceipt = function (orderId) {
+        var o = getOrders().filter(function (x) { return x.id === orderId; })[0];
+        if (!o) {
+          toast('Order not found.');
+          return;
+        }
+        var printWin = window.open('', '_blank', 'width=650,height=750');
+        if (!printWin) {
+          toast('Please allow popups to generate receipt.');
+          return;
+        }
+        var itemsHtml = (o.items || []).map(function (it) {
+          return '<tr>' +
+            '<td style="padding:8px;border-bottom:1px solid #eee;font-weight:600;">' + esc(it.name) + '</td>' +
+            '<td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">' + it.qty + '</td>' +
+            '<td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">' + peso(it.price * it.qty) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        var docHtml = '<!DOCTYPE html><html><head><title>Receipt - ' + esc(o.orderNumber) + '</title>' +
+          '<meta charset="UTF-8">' +
+          '<style>' +
+          'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;margin:24px;color:#1e293b;max-width:550px;margin:auto;}' +
+          '.hdr{text-align:center;border-bottom:2px dashed #cbd5e1;padding-bottom:16px;margin-bottom:20px;}' +
+          '.hdr h2{margin:0;font-size:22px;color:#0f172a;}' +
+          '.hdr p{margin:4px 0;font-size:13px;color:#64748b;}' +
+          '.info-box{background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:8px;margin-bottom:20px;font-size:13px;line-height:1.6;}' +
+          'table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px;}' +
+          'th{text-align:left;border-bottom:2px solid #0f172a;padding:8px;font-size:12px;text-transform:uppercase;color:#475569;}' +
+          '.tot{font-size:18px;font-weight:800;text-align:right;margin-top:16px;padding-top:12px;border-top:2px solid #0f172a;}' +
+          '@media print{.noprint{display:none;}}' +
+          '</style>' +
+          '</head><body>' +
+          '<div class="hdr">' +
+          '<h2>NelGlenn\'s Sari-Sari Store</h2>' +
+          '<p>Official Digital Order Receipt</p>' +
+          '<p>Order No: <strong>' + esc(o.orderNumber) + '</strong> &middot; ' + fmtDateTime(o.createdAt) + '</p>' +
+          '</div>' +
+          '<div class="info-box">' +
+          '<div><strong>Customer Name:</strong> ' + esc(o.delivery.fullName) + '</div>' +
+          '<div><strong>Phone Number:</strong> ' + esc(o.delivery.phone) + '</div>' +
+          '<div><strong>Delivery Address:</strong> ' + esc((o.delivery.houseStreet || '') + ', ' + (o.delivery.barangay || '')) + '</div>' +
+          '<div><strong>Status:</strong> ' + esc(o.status) + ' &middot; <strong>Payment Method:</strong> Cash on Delivery</div>' +
+          '</div>' +
+          '<table><thead><tr><th>Item Name</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Total</th></tr></thead><tbody>' + itemsHtml + '</tbody></table>' +
+          '<div class="tot">Grand Total: ' + peso(o.total) + '</div>' +
+          '<div style="text-align:center;margin-top:28px;font-size:12px;color:#94a3b8;">Thank you for ordering at NelGlenn\'s Sari-Sari Store!</div>' +
+          '<div class="noprint" style="text-align:center;margin-top:24px;">' +
+          '<button onclick="window.print()" style="padding:10px 24px;font-size:14px;font-weight:700;background:#10b981;color:#fff;border:none;border-radius:8px;cursor:pointer;">🖨️ Print Receipt</button>' +
+          '</div>' +
+          '</body></html>';
+
+        printWin.document.write(docHtml);
+        printWin.document.close();
+      };
+
+      App.restockAllLowItems = function () {
+        var products = getProducts();
+        var count = 0;
+        products.forEach(function (p) {
+          if (p.stock <= LOW_STOCK_THRESHOLD) {
+            p.stock += 20;
+            count++;
+          }
+        });
+        if (count > 0) {
+          saveProducts(products);
+          toast('Restocked ' + count + ' low-stock item(s) by +20!');
+          render(true);
+        } else {
+          toast('All items have sufficient stock.');
+        }
+      };
+
 window.App = App;
 
 /* ================= RENDER ROOT WITH SCROLL PRESERVATION ================= */

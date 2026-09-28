@@ -82,6 +82,19 @@
           '</div>';
       }
 
+      function calcOrderEta(o) {
+        if (!o || o.status === 'Delivered' || o.status === 'Cancelled') return null;
+        var coords = getOrderCoords(o);
+        var store = (typeof getStoreLocation === 'function') ? getStoreLocation() : STORE_LOCATION;
+        if (coords && typeof hasStoreGps === 'function' && hasStoreGps(store)) {
+          var distKm = calcDistanceKm(store.lat, store.lng, coords.lat, coords.lng);
+          var estMins = Math.max(5, Math.round((distKm / 20) * 60 + 5));
+          var distStr = distKm < 1 ? Math.round(distKm * 1000) + 'm' : distKm.toFixed(1) + ' km';
+          return '⏱️ Est. Delivery: ~' + estMins + '–' + (estMins + 5) + ' mins (' + distStr + ')';
+        }
+        return '⏱️ Est. Delivery: ~10–15 mins';
+      }
+
       function renderActiveOrderBanner(user) {
         var orders = getOrders().filter(function (o) { return o.customerId === user.id && o.status !== 'Delivered' && o.status !== 'Cancelled'; });
         if (orders.length === 0) return '';
@@ -89,9 +102,10 @@
         var o = orders[0];
         var idx = STATUS_FLOW.indexOf(o.status);
         var segs = STATUS_FLOW.map(function (s, i) { return '<div class="seg' + (i <= idx ? ' done' : '') + '"></div>'; }).join('');
+        var eta = calcOrderEta(o);
         return '' +
           '<div class="active-order-card">' +
-          '<div class="row1"><div><div style="font-weight:800;font-size:15px;">' + ICON.truck + ' Your order is on the way</div><div class="ord-no">' + esc(o.orderNumber) + '</div></div><div class="status-pill">' + esc(o.status) + '</div></div>' +
+          '<div class="row1"><div><div style="font-weight:800;font-size:15px;">' + ICON.truck + ' Active Order</div><div class="ord-no">' + esc(o.orderNumber) + (eta ? '<br><span style="font-size:12px;font-weight:600;color:var(--emerald-400);">' + eta + '</span>' : '') + '</div></div><div class="status-pill">' + esc(o.status) + '</div></div>' +
           '<div class="progress-track">' + segs + '</div>' +
           '<button class="cta" onclick="App.viewOrder(\'' + o.id + '\')">View order status &rarr;</button>' +
           '</div>';
@@ -362,7 +376,9 @@
           return '' +
             '<div class="order-card" onclick="App.viewOrder(\'' + o.id + '\')">' +
             '<div class="top"><div><div class="ordno">' + esc(o.orderNumber) + '</div><div class="meta">' + fmtDateTime(o.createdAt) + ' &middot; ' + o.items.length + ' item(s)</div></div><span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span></div>' +
-            '<div class="info-row" style="padding:2px 0;"><span class="k">Total</span><span class="v">' + peso(o.total) + '</span></div>' +
+            '<div class="info-row" style="padding:4px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;"><span class="k">Total: <strong style="color:var(--ink-900);">' + peso(o.total) + '</strong></span>' +
+            '<div style="display:flex;gap:6px;"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); App.printReceipt(\'' + o.id + '\')">🧾 Receipt</button>' +
+            '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); App.reorderOrder(\'' + o.id + '\')">🔄 Re-order</button></div></div>' +
             '</div>';
         }).join('');
       }
@@ -376,6 +392,7 @@
           return '<div class="empty-state"><h3>Order not found</h3><button class="btn btn-primary" onclick="App.go(\'customer-orders\')">Back to orders</button></div>';
         }
         var canCancel = (o.status === 'Pending' || o.status === 'Confirmed');
+        var eta = calcOrderEta(o);
         var timeline;
         if (o.status === 'Cancelled') {
           timeline = '<div class="tl-step done current"><div class="tl-dot">' + ICON.close + '</div><div><div class="tl-label">Cancelled</div><div class="tl-time">' + fmtDateTime(lastHistTime(o, 'Cancelled')) + '</div></div></div>';
@@ -400,7 +417,11 @@
 
         return '' +
           '<button class="btn btn-ghost btn-sm" style="padding-left:0;margin-bottom:10px;" onclick="App.go(\'customer-orders\')">&larr; Back to orders</button>' +
-          '<div class="card"><div class="top" style="display:flex;justify-content:space-between;align-items:center;"><div><div class="ordno" style="font-size:17px;">' + esc(o.orderNumber) + '</div><div class="meta">Placed ' + fmtDateTime(o.createdAt) + '</div></div><span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span></div></div>' +
+          '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+            '<button class="btn btn-outline btn-sm" onclick="App.printReceipt(\'' + o.id + '\')">🧾 Print Official Receipt</button>' +
+            '<button class="btn btn-primary btn-sm" onclick="App.reorderOrder(\'' + o.id + '\')">🔄 Re-order Items into Cart</button>' +
+          '</div>' +
+          '<div class="card"><div class="top" style="display:flex;justify-content:space-between;align-items:center;"><div><div class="ordno" style="font-size:17px;">' + esc(o.orderNumber) + '</div><div class="meta">Placed ' + fmtDateTime(o.createdAt) + (eta ? '<br><span style="font-weight:700;color:var(--emerald-600);font-size:13px;">' + eta + '</span>' : '') + '</div></div><span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span></div></div>' +
           '<div class="section-title">Order status</div>' +
           '<div class="card"><div class="timeline">' + timeline + '</div></div>' +
           trackingHtml +
