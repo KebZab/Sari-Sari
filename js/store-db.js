@@ -346,6 +346,10 @@ function getStoreLocation() {
         });
       }
 
+      function storeLocationChanged(newLoc) {
+        return JSON.stringify(dbGet('sst_store_location', null)) !== JSON.stringify(newLoc);
+      }
+
       function syncDocToCloud(coll, item) {
         if (!firestoreDb || !item || !item.id) return;
         try {
@@ -445,8 +449,7 @@ function getStoreLocation() {
           if (doc.exists) {
             var d = doc.data();
             if (d && typeof d.lat === 'number' && typeof d.lng === 'number') {
-              var curLoc = JSON.stringify(STORE_LOCATION);
-              if (JSON.stringify(d) !== curLoc) {
+              if (storeLocationChanged(d)) {
                 updateStoreLocationObject(d);
                 dbSet('sst_store_location', d);
                 triggerRealtimeRender();
@@ -459,7 +462,7 @@ function getStoreLocation() {
           try {
             fbRtdb.ref('settings/store_location').on('value', function (snap) {
               var d = snap.val();
-              if (d && typeof d.lat === 'number' && typeof d.lng === 'number') {
+              if (d && typeof d.lat === 'number' && typeof d.lng === 'number' && storeLocationChanged(d)) {
                 updateStoreLocationObject(d);
                 dbSet('sst_store_location', d);
                 triggerRealtimeRender();

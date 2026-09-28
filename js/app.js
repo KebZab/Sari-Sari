@@ -949,8 +949,20 @@ window.App = App;
         var app = document.getElementById('app');
         if (!app) return;
 
+        var user = currentUser();
+        var nextHtml;
+        if (!user) {
+          if (state.view !== 'auth-login' && state.view !== 'auth-register') state.view = 'auth-login';
+          nextHtml = state.view === 'auth-register' ? renderRegister() : renderLogin();
+        } else if (user.role === 'admin') {
+          nextHtml = renderAdminShell(user);
+        } else {
+          nextHtml = renderCustomerShell(user);
+        }
+
         var currentView = state.view;
         var currentAdminSec = state.adminSection;
+        if (_lastView === currentView && _lastAdminSection === currentAdminSec && app.innerHTML === nextHtml) return;
 
         var shouldPreserve = (typeof preserveScroll === 'boolean')
           ? preserveScroll
@@ -979,15 +991,7 @@ window.App = App;
         var origBehavior = (rootEl && rootEl.style) ? rootEl.style.scrollBehavior : '';
         if (rootEl && rootEl.style) rootEl.style.scrollBehavior = 'auto';
 
-        var user = currentUser();
-        if (!user) {
-          if (state.view !== 'auth-login' && state.view !== 'auth-register') state.view = 'auth-login';
-          app.innerHTML = state.view === 'auth-register' ? renderRegister() : renderLogin();
-        } else if (user.role === 'admin') {
-          app.innerHTML = renderAdminShell(user);
-        } else {
-          app.innerHTML = renderCustomerShell(user);
-        }
+        app.innerHTML = nextHtml;
 
         if (shouldPreserve && typeof window !== 'undefined' && (scrollY > 0 || scrollX > 0 || catScrollLeft > 0 || drawerScrollTop > 0)) {
           if (typeof window.scrollTo === 'function') {
