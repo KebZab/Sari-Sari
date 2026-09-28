@@ -198,24 +198,35 @@ var App = window.App = window.App || {};
             provider.addScope('email');
             provider.setCustomParameters({ prompt: 'select_account' });
 
+            var isMobile = false;
+            try {
+              isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                         (window.innerWidth && window.innerWidth <= 768);
+            } catch (e) { }
+
             toast('Connecting to Google...');
+
+            if (isMobile) {
+              auth.signInWithRedirect(provider).catch(function (err) {
+                console.warn("[Google Auth] Mobile redirect error:", err);
+                App.showGoogleAuthNoticeModal(err);
+              });
+              return;
+            }
+
             auth.signInWithPopup(provider).then(function (result) {
               if (result && result.user) {
                 App.processGoogleUser(result.user);
               }
             }).catch(function (error) {
-              console.warn("[Google Auth] Popup error:", error);
-              if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-                toast('Google sign-in was cancelled.');
-                return;
-              }
-              if (error.code === 'auth/popup-blocked') {
-                toast('Popup was blocked by browser. Retrying with redirect...');
+              console.warn("[Google Auth] Desktop popup error:", error);
+              if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+                toast('Opening Google Sign-In redirect...');
                 try {
                   auth.signInWithRedirect(provider);
                   return;
                 } catch (redErr) {
-                  console.warn("[Google Auth] Redirect error:", redErr);
+                  console.warn("[Google Auth] Fallback redirect error:", redErr);
                 }
               }
               App.showGoogleAuthNoticeModal(error);
@@ -914,12 +925,22 @@ window.App = App;
 
       if (typeof firebase !== 'undefined' && firebase.auth) {
         try {
-          firebase.auth().getRedirectResult().then(function (result) {
+          var auth = firebase.auth();
+          auth.getRedirectResult().then(function (result) {
             if (result && result.user) {
               App.processGoogleUser(result.user);
             }
           }).catch(function (err) {
             console.warn("[Google Auth] Redirect result check:", err);
+            if (err && err.code && err.code !== 'auth/null-user') {
+              App.showGoogleAuthNoticeModal(err);
+            }
           });
-        } catch (e) {}
+
+          auth.onAuthStateChanged(function (gUser) {
+            if (gUser && (!currentUser() || currentUser().authProvider === 'google')) {
+              App.processGoogleUser(gUser);
+            }
+          });
+        } catch (e) { }
       }
