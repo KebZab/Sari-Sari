@@ -1292,6 +1292,143 @@
       padding: 16px 24px 24px;
     }
 
+    
+    /* ---- Initial Location Permission Modal & Indicator ---- */
+    .loc-modal-card {
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      max-width: 440px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      text-align: center;
+      padding: 32px 24px 28px;
+      animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+    }
+    .loc-icon-bubble {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(45, 165, 110, 0.16), rgba(34, 135, 91, 0.28));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      position: relative;
+    }
+    .loc-icon-bubble::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid var(--green-400);
+      opacity: 0.6;
+      animation: radarPulse 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+    }
+    @keyframes radarPulse {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+    .loc-title {
+      font-family: var(--font-display);
+      font-size: 21px;
+      font-weight: 800;
+      color: var(--ink-900);
+      margin-bottom: 8px;
+    }
+    .loc-subtitle {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink-600);
+      margin-bottom: 22px;
+    }
+    .loc-detected-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--green-50);
+      border: 1px solid var(--green-200);
+      color: var(--green-800);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 18px;
+      text-align: left;
+      max-width: 100%;
+    }
+    .loc-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .loc-btn-primary {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--green-600), var(--green-500));
+      color: #FFFFFF;
+      border: none;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(34, 135, 91, 0.3);
+      transition: all var(--transition-fast);
+    }
+    .loc-btn-primary:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 6px rgba(34, 135, 91, 0.2);
+    }
+    .loc-btn-secondary {
+      background: transparent;
+      border: none;
+      color: var(--ink-500);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 12px;
+    }
+    .loc-btn-secondary:hover {
+      color: var(--ink-800);
+    }
+    .topbar-location-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+      margin: 8px 0 2px;
+      font-size: 12px;
+      color: var(--ink-700);
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all var(--transition-fast);
+      user-select: none;
+    }
+    .topbar-location-bar:hover {
+      background: var(--surface-3);
+    }
+    .topbar-location-bar .loc-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
+    }
+    .topbar-location-bar .loc-action {
+      color: var(--green-600);
+      font-weight: 700;
+      font-size: 11px;
+    }
+
     /* ---- Cart ---- */
     .cart-item {
       display: flex;
@@ -3136,6 +3273,12 @@
       /* ================= APP STATE ================= */
       var state = {
         view: 'auth-login',
+        userCoords: null,
+        userPlaceName: '',
+        detectedBarangay: '',
+        detectedStreet: '',
+        locationModalOpen: false,
+        locationStatus: 'idle',
         adminSection: 'dashboard',
         sidebarOpen: false,
         cartOpen: false,
@@ -4073,10 +4216,11 @@
           '<div class="auth-logo"><div class="mark">' + ICON.store + '</div><div class="auth-title">Create account</div></div>' +
           '<div class="auth-sub">Register to order from the sari-sari store</div>' +
           '<form onsubmit="return App.handleRegister(event)">' +
+          (state.userPlaceName ? '<div class="loc-detected-badge" style="margin-bottom:12px;width:100%;"><span>📍</span><span>Auto-detected: ' + esc(state.userPlaceName) + '</span></div>' : '') + '' +
           '<div class="field' + ef('fullName') + '"><label>Full name</label><input id="reg-fullname" type="text" placeholder="Juan Dela Cruz">' + em('fullName') + '</div>' +
           '<div class="field' + ef('phone') + '"><label>Phone number</label><input id="reg-phone" type="tel" placeholder="09XXXXXXXXX">' + em('phone') + '</div>' +
-          '<div class="field' + ef('barangay') + '"><label>Barangay</label><input id="reg-barangay" type="text" placeholder="Barangay San Isidro">' + em('barangay') + '</div>' +
-          '<div class="field' + ef('houseStreet') + '"><label>House number / street</label><input id="reg-housestreet" type="text" placeholder="123 Mabini St.">' + em('houseStreet') + '</div>' +
+          '<div class="field' + ef('barangay') + '"><label>Barangay</label><input id="reg-barangay" type="text" placeholder="Barangay San Isidro" value="' + esc(state.detectedBarangay || '') + '">' + em('barangay') + '</div>' +
+          '<div class="field' + ef('houseStreet') + '"><label>House number / street</label><input id="reg-housestreet" type="text" placeholder="123 Mabini St." value="' + esc(state.detectedStreet || '') + '">' + em('houseStreet') + '</div>' +
           '<div class="field' + ef('landmark') + '"><label>Nearby landmark</label><input id="reg-landmark" type="text" placeholder="Near the covered court">' + em('landmark') + '</div>' +
           '<div class="field' + ef('password') + '"><label>Password</label><input id="reg-password" type="password" placeholder="At least 6 characters">' + em('password') + '</div>' +
           '<div class="field' + ef('confirm') + '"><label>Confirm password</label><input id="reg-confirm" type="password" placeholder="Re-enter password">' + em('confirm') + '</div>' +
@@ -4793,6 +4937,207 @@
       };
       App.closeModal = function () { state.view = currentUser().role === 'admin' ? 'admin-' + state.adminSection : state.view; state.editingProductId = null; state.productFormCategory = null; state.productFormImage = undefined; render(); };
       App.setOrderFilter = function (f) { state.orderFilter = f; render(); };
+
+      
+      /* ================= INITIAL LOCATION & REVERSE GEOCODING ENGINE ================= */
+      function reverseGeocode(lat, lng, callback) {
+        if (typeof fetch === 'undefined') { callback(null); return; }
+        try {
+          var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1';
+          fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (data && data.address) {
+                var addr = data.address;
+                var barangay = addr.suburb || addr.quarter || addr.neighbourhood || addr.village || addr.city_district || '';
+                var road = addr.road || addr.street || addr.building || '';
+                var city = addr.city || addr.town || addr.municipality || '';
+                var parts = [];
+                if (road) parts.push(road);
+                if (barangay) parts.push(barangay);
+                if (city && city !== barangay) parts.push(city);
+                var shortPlace = parts.length > 0 ? parts.join(', ') : (data.display_name ? data.display_name.split(',').slice(0, 2).join(',') : 'Nearby Place');
+                callback({
+                  placeName: shortPlace,
+                  barangay: barangay || city || 'Local Area',
+                  street: road || '',
+                  fullAddress: data.display_name || shortPlace
+                });
+              } else {
+                callback(null);
+              }
+            })
+            .catch(function (err) {
+              console.warn("Reverse geocode notice:", err);
+              callback(null);
+            });
+        } catch (e) {
+          callback(null);
+        }
+      }
+
+      function renderLocationModal() {
+        var isLocating = state.locationStatus === 'requesting';
+        var hasCoords = !!state.userCoords;
+        var place = state.userPlaceName || (hasCoords ? 'GPS: ' + state.userCoords.lat.toFixed(5) + ', ' + state.userCoords.lng.toFixed(5) : '');
+        var acc = hasCoords && state.userCoords.accuracy ? ' (~' + state.userCoords.accuracy + 'm accuracy)' : '';
+
+        return '' +
+          '<div class="overlay-bg center" style="z-index:9999;" onclick="if(event.target===this) App.dismissLocationModal()">' +
+          '<div class="loc-modal-card">' +
+          '<div class="loc-icon-bubble">📍</div>' +
+          '<div class="loc-title">' + (hasCoords ? 'Actual Location Detected' : 'Allow Location Access') + '</div>' +
+          '<div class="loc-subtitle">' +
+          (hasCoords
+            ? 'We found your actual location! We will use this to deliver your orders right to your doorstep with accurate road routing.'
+            : 'Allow location access so Aling Nena\'s Store can find your actual place, calculate delivery routes, and deliver orders right to your doorstep.') +
+          '</div>' +
+          (hasCoords
+            ? '<div class="loc-detected-badge" style="justify-content:center;"><span>✓</span><span>' + esc(place + acc) + '</span></div>'
+            : '') +
+          '<div class="loc-actions">' +
+          '<button class="loc-btn-primary" onclick="App.requestLocation(true)" ' + (isLocating ? 'disabled style="opacity:0.8;"' : '') + '>' +
+          (isLocating ? '<span>📡</span> Detecting Actual Location...' : (hasCoords ? '<span>📍</span> Update My Location' : '<span>📍</span> Allow Location Access')) +
+          '</button>' +
+          '<button class="loc-btn-secondary" onclick="App.dismissLocationModal()">' +
+          (hasCoords ? 'Continue to Store' : 'Skip &amp; Set Pin Manually Later') +
+          '</button>' +
+          '</div>' +
+          '</div>' +
+          '</div>';
+      }
+
+      App.promptLocation = function (forceModal) {
+        state.locationModalOpen = true;
+        render();
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          App.requestLocation(false);
+        }
+      };
+
+      App.dismissLocationModal = function () {
+        state.locationModalOpen = false;
+        render();
+      };
+
+      App.requestLocation = function (showToast) {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          if (showToast) toast('Geolocation is not supported by your browser.');
+          state.locationStatus = 'unsupported';
+          state.locationModalOpen = false;
+          render();
+          return;
+        }
+
+        state.locationStatus = 'requesting';
+        if (showToast) toast('📡 Requesting location permission...');
+        render();
+
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          var accuracy = Math.round(pos.coords.accuracy || 15);
+          var coords = {
+            lat: lat,
+            lng: lng,
+            accuracy: accuracy,
+            manual: false,
+            timestamp: new Date().toISOString()
+          };
+          state.userCoords = coords;
+          state.checkoutCoords = coords;
+          state.checkoutGpsStatus = 'locked';
+          state.locationStatus = 'locked';
+          dbSet('sst_user_coords', coords);
+
+          var user = currentUser();
+          if (user && user.role === 'admin' && !STORE_LOCATION.isActualGps) {
+            setStoreLocation(coords, "Aling Nena's Store", "Actual Store Location (" + lat.toFixed(4) + ", " + lng.toFixed(4) + ")");
+          }
+
+          reverseGeocode(lat, lng, function (res) {
+            if (res) {
+              state.userPlaceName = res.placeName;
+              state.detectedBarangay = res.barangay;
+              state.detectedStreet = res.street;
+              dbSet('sst_user_place', res.placeName);
+              if (res.barangay) dbSet('sst_user_brgy', res.barangay);
+              if (res.street) dbSet('sst_user_street', res.street);
+            } else {
+              var fallbackPlace = 'GPS: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
+              state.userPlaceName = fallbackPlace;
+              dbSet('sst_user_place', fallbackPlace);
+            }
+            state.locationModalOpen = false;
+            render();
+            toast('📍 Location locked: ' + (state.userPlaceName || 'Live GPS') + ' (~' + accuracy + 'm accuracy)');
+          });
+
+          if (activeMaps.checkout) {
+            activeMaps.checkout.flyTo([lat, lng], 17, { duration: 1.2 });
+            if (activeMaps.checkoutMarker) {
+              activeMaps.checkoutMarker.setLatLng([lat, lng]);
+              if (!activeMaps.checkout.hasLayer(activeMaps.checkoutMarker)) activeMaps.checkoutMarker.addTo(activeMaps.checkout);
+              activeMaps.checkoutMarker.bindPopup('🟢 <b>Your Live GPS Locked</b><br>' + esc(state.userPlaceName || 'Actual Location')).openPopup();
+            }
+            if (activeMaps.checkoutAccuracy) activeMaps.checkout.removeLayer(activeMaps.checkoutAccuracy);
+            activeMaps.checkoutAccuracy = L.circle([lat, lng], {
+              radius: Math.min(120, accuracy),
+              color: '#2DA56E',
+              fillColor: '#2DA56E',
+              fillOpacity: 0.18,
+              weight: 1.5
+            }).addTo(activeMaps.checkout);
+            if (activeMaps.checkoutUpdateRoute) activeMaps.checkoutUpdateRoute(lat, lng);
+          }
+
+          setTimeout(function () {
+            state.locationModalOpen = false;
+            render();
+          }, 400);
+
+        }, function (err) {
+          console.warn("Location permission notice:", err);
+          state.locationStatus = 'denied';
+          state.locationModalOpen = false;
+          render();
+          if (showToast) {
+            toast('Location permission denied or unavailable. Tap map on checkout to set pin!');
+          }
+        }, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0
+        });
+      };
+
+      function initLocationOnStartup() {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+        var savedCoords = dbGet('sst_user_coords', null);
+        var savedPlace = dbGet('sst_user_place', '');
+        var savedBrgy = dbGet('sst_user_brgy', '');
+        var savedStreet = dbGet('sst_user_street', '');
+        if (savedCoords && Number.isFinite(savedCoords.lat)) {
+          state.userCoords = savedCoords;
+          state.checkoutCoords = savedCoords;
+          state.userPlaceName = savedPlace;
+          state.detectedBarangay = savedBrgy;
+          state.detectedStreet = savedStreet;
+          state.checkoutGpsStatus = 'locked';
+        }
+
+        // On first visit without saved coordinates, prompt the modal on web and mobile
+        if (!savedCoords) {
+          state.locationModalOpen = true;
+        }
+
+        // Automatically trigger native browser prompt on launch
+        try {
+          App.requestLocation(false);
+        } catch (e) {
+          console.warn("Location auto-request notice:", e);
+        }
+      }
 
       /* ---- Real-Time Customer GPS Actions ---- */
       App.detectCustomerGps = function (showToast) {
