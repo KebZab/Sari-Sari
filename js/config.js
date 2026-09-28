@@ -6,7 +6,7 @@ var App = window.App = window.App || {};
       var K = {
         USERS: 'sst_users', PRODUCTS: 'sst_products', CATEGORIES: 'sst_categories',
         ORDERS: 'sst_orders', NOTIFS: 'sst_notifications', SESSION: 'sst_session',
-        SEEDED: 'sst_seeded_v1', COUNTER: 'sst_order_counter'
+        SEEDED: 'sst_seeded_v2', COUNTER: 'sst_order_counter'
       };
 
 /* ================= DEFAULT STORE LOCATION ================= */

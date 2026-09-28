@@ -225,7 +225,42 @@ function getStoreLocation() {
         dbSet(K.SEEDED, true);
       }
 
+      function migrateLegacyStoreData() {
+        var users = getUsers();
+        var usersChanged = false;
+        users.forEach(function (u) {
+          if (u.fullName && u.fullName.indexOf('Aling Nena') !== -1) {
+            u.fullName = u.fullName.replace(/Aling Nena/g, 'NelGlenn');
+            usersChanged = true;
+          }
+        });
+        if (usersChanged) {
+          saveUsers(users);
+        }
+
+        var loc = dbGet('sst_store_location', null);
+        if (loc && loc.name && loc.name.indexOf('Aling Nena') !== -1) {
+          loc.name = loc.name.replace(/Aling Nena/g, 'NelGlenn');
+          dbSet('sst_store_location', loc);
+          updateStoreLocationObject(loc);
+        }
+
+        var sess = dbGet(K.SESSION, null);
+        if (sess && sess.fullName && sess.fullName.indexOf('Aling Nena') !== -1) {
+          sess.fullName = sess.fullName.replace(/Aling Nena/g, 'NelGlenn');
+          dbSet(K.SESSION, sess);
+        }
+
+        try {
+          if (typeof localStorage !== 'undefined' && localStorage.getItem('sst_seeded_v1')) {
+            localStorage.removeItem('sst_seeded_v1');
+            localStorage.setItem('sst_seeded_v2', 'true');
+          }
+        } catch (e) { }
+      }
+
       function ensureDemoCustomersExist() {
+        migrateLegacyStoreData();
         var users = getUsers();
         var updated = false;
         if (!users.some(function (u) { return u.phone === '09183334444'; })) {
