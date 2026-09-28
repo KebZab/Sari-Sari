@@ -20,6 +20,29 @@ The admin delivery screen asks for the device's GPS location. Open it on the dev
 
 Maps use OpenStreetMap tiles and OSRM road routing. Browser location access and network access are required for live maps and cross-device tracking.
 
+## Deploy to Vercel
+
+This repository includes a preconfigured `vercel.json` for seamless static hosting on Vercel.
+
+### Option 1: Via Vercel CLI
+Run the following in the project root:
+```sh
+npx vercel
+```
+Follow the interactive prompts to link and deploy to your Vercel account. For production deployment:
+```sh
+npx vercel --prod
+```
+
+### Option 2: Via GitHub / Git Repository
+1. Push this repository to GitHub, GitLab, or Bitbucket.
+2. In the [Vercel Dashboard](https://vercel.com/new), click **Add New... -> Project**.
+3. Import the repository.
+4. Leave Framework Preset as **Other** (Root directory `./`).
+5. Click **Deploy**.
+
+Vercel will serve `sari-sari-store.html` at the root domain (`/`), provide automatic HTTPS (required for GPS geolocation and maps), and connect directly to the Cloud Firestore database.
+
 ## Current limitations
 
 This is a demo, **not ready for public production use**. It seeds demo accounts, stores passwords in browser storage and Firestore, and `firestore.rules` currently allows all reads and writes. Replace the authentication and database security model before deploying it for real customers. The smoke check covers local ordering flows; it does not verify device GPS or live Firebase synchronization.
