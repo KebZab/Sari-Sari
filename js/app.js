@@ -136,11 +136,16 @@ var App = window.App = window.App || {};
 /* ---- Auth ---- */
       App.handleLogin = function (e) {
         e.preventDefault();
-        var phone = document.getElementById('login-phone').value.trim();
+        var inputVal = document.getElementById('login-phone').value.trim();
+        var inputLower = inputVal.toLowerCase();
         var password = document.getElementById('login-password').value;
-        var user = getUsers().filter(function (u) { return u.phone === phone; })[0];
+        var user = getUsers().filter(function (u) {
+          var matchPhone = u.phone && u.phone.trim() === inputVal;
+          var matchEmail = u.email && u.email.trim().toLowerCase() === inputLower;
+          return matchPhone || matchEmail;
+        })[0];
         if (!user || !verifyPassword(password, user.password)) {
-          state.loginError = 'Incorrect phone number or password.';
+          state.loginError = 'Incorrect phone number, email, or password.';
           render();
           return false;
         }
@@ -153,28 +158,51 @@ var App = window.App = window.App || {};
         state.view = user.role === 'admin' ? 'admin-dashboard' : 'customer-home';
         state.adminSection = 'dashboard';
         render(false);
-        toast('Welcome back, ' + user.fullName.split(' ')[0] + '!');
+        toast('Welcome back, ' + (user.fullName ? user.fullName.split(' ')[0] : 'there') + '!');
         return false;
       };
+
       App.handleRegister = function (e) {
         e.preventDefault();
+        var emailEl = document.getElementById('reg-email');
+        var phoneEl = document.getElementById('reg-phone');
         var vals = {
-          fullName: document.getElementById('reg-fullname').value.trim(),
-          phone: document.getElementById('reg-phone').value.trim(),
-          barangay: document.getElementById('reg-barangay').value.trim(),
-          houseStreet: document.getElementById('reg-housestreet').value.trim(),
-          landmark: document.getElementById('reg-landmark').value.trim(),
-          password: document.getElementById('reg-password').value,
-          confirm: document.getElementById('reg-confirm').value
+          fullName: document.getElementById('reg-fullname') ? document.getElementById('reg-fullname').value.trim() : '',
+          email: emailEl ? emailEl.value.trim().toLowerCase() : '',
+          phone: phoneEl ? phoneEl.value.trim() : '',
+          barangay: document.getElementById('reg-barangay') ? document.getElementById('reg-barangay').value.trim() : '',
+          houseStreet: document.getElementById('reg-housestreet') ? document.getElementById('reg-housestreet').value.trim() : '',
+          landmark: document.getElementById('reg-landmark') ? document.getElementById('reg-landmark').value.trim() : '',
+          password: document.getElementById('reg-password') ? document.getElementById('reg-password').value : '',
+          confirm: document.getElementById('reg-confirm') ? document.getElementById('reg-confirm').value : ''
         };
         var err = {};
         if (!vals.fullName) err.fullName = 'Full name is required.';
-        if (!vals.phone || !/^[0-9+ ]{7,15}$/.test(vals.phone)) err.phone = 'Enter a valid phone number.';
-        else if (getUsers().some(function (u) { return u.phone === vals.phone; })) err.phone = 'This phone number is already registered.';
+
+        if (!vals.phone && !vals.email) {
+          err.phone = 'Enter a valid phone number or email.';
+        } else {
+          if (vals.phone) {
+            if (!/^[0-9+ ]{7,15}$/.test(vals.phone)) {
+              err.phone = 'Enter a valid phone number.';
+            } else if (getUsers().some(function (u) { return u.phone && u.phone.trim() === vals.phone; })) {
+              err.phone = 'This phone number is already registered.';
+            }
+          }
+          if (vals.email) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vals.email)) {
+              err.email = 'Enter a valid email address.';
+            } else if (getUsers().some(function (u) { return u.email && u.email.trim().toLowerCase() === vals.email; })) {
+              err.email = 'This email address is already registered.';
+            }
+          }
+        }
+
         if (!vals.barangay) err.barangay = 'Barangay is required.';
         if (!vals.houseStreet) err.houseStreet = 'House number / street is required.';
         if (!vals.password || vals.password.length < 6) err.password = 'Password must be at least 6 characters.';
         if (vals.confirm !== vals.password) err.confirm = 'Passwords do not match.';
+
         if (Object.keys(err).length) {
           state.registerError = err;
           App.showRegisterErrors(err);
@@ -182,7 +210,8 @@ var App = window.App = window.App || {};
         }
         var users = getUsers();
         var newUser = {
-          id: uid('user'), role: 'customer', fullName: vals.fullName, phone: vals.phone,
+          id: uid('user'), role: 'customer', fullName: vals.fullName,
+          email: vals.email, phone: vals.phone,
           password: typeof hashPassword === 'function' ? hashPassword(vals.password) : vals.password,
           barangay: vals.barangay, houseStreet: vals.houseStreet,
           landmark: vals.landmark, createdAt: new Date().toISOString()
@@ -199,7 +228,7 @@ var App = window.App = window.App || {};
 
       App.showRegisterErrors = function (errors) {
         var fields = {
-          fullName: 'reg-fullname', phone: 'reg-phone', barangay: 'reg-barangay',
+          fullName: 'reg-fullname', email: 'reg-email', phone: 'reg-phone', barangay: 'reg-barangay',
           houseStreet: 'reg-housestreet', landmark: 'reg-landmark',
           password: 'reg-password', confirm: 'reg-confirm'
         };
@@ -229,12 +258,99 @@ var App = window.App = window.App || {};
         var message = field.querySelector('.field-error');
         if (message) message.remove();
         var errorKeys = {
-          'reg-fullname': 'fullName', 'reg-phone': 'phone',
+          'reg-fullname': 'fullName', 'reg-email': 'email', 'reg-phone': 'phone',
           'reg-barangay': 'barangay', 'reg-housestreet': 'houseStreet',
           'reg-landmark': 'landmark', 'reg-password': 'password',
           'reg-confirm': 'confirm'
         };
         delete state.registerError[errorKeys[e.target.id]];
+      };
+
+      /* ---- Philippines Address Dropdowns Controller ---- */
+      App.loadPhProvinces = function (selectId) {
+        var el = document.getElementById(selectId || 'reg-province');
+        if (!el || typeof PhLocationAPI === 'undefined') return;
+        el.innerHTML = PhLocationAPI.getProvinceOptionsHtml();
+      };
+
+      App.onProvinceChange = function (provCode, prefix) {
+        prefix = prefix || 'reg-';
+        var citySelect = document.getElementById(prefix + 'city');
+        var brgySelect = document.getElementById(prefix + 'barangay-select');
+
+        if (!provCode) {
+          if (citySelect) citySelect.innerHTML = '<option value="">Select City / Municipality...</option>';
+          if (brgySelect) brgySelect.innerHTML = '<option value="">Select Barangay...</option>';
+          return;
+        }
+
+        if (citySelect) citySelect.innerHTML = '<option value="">Loading Cities / Municipalities...</option>';
+        if (brgySelect) brgySelect.innerHTML = '<option value="">Select City / Municipality first...</option>';
+
+        if (typeof PhLocationAPI !== 'undefined') {
+          PhLocationAPI.getCitiesForProvince(provCode).then(function (cities) {
+            if (citySelect) {
+              if (!cities || cities.length === 0) {
+                citySelect.innerHTML = '<option value="">No cities found</option>';
+                return;
+              }
+              var html = '<option value="">Select City / Municipality...</option>';
+              cities.forEach(function (c) {
+                html += '<option value="' + esc(c.code) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + '</option>';
+              });
+              citySelect.innerHTML = html;
+            }
+          });
+        }
+      };
+
+      App.onCityChange = function (cityCode, prefix) {
+        prefix = prefix || 'reg-';
+        var brgySelect = document.getElementById(prefix + 'barangay-select');
+        if (!cityCode) {
+          if (brgySelect) brgySelect.innerHTML = '<option value="">Select Barangay...</option>';
+          return;
+        }
+
+        if (brgySelect) brgySelect.innerHTML = '<option value="">Loading Barangays...</option>';
+
+        if (typeof PhLocationAPI !== 'undefined') {
+          PhLocationAPI.getBarangays(cityCode).then(function (barangays) {
+            if (brgySelect) {
+              if (!barangays || barangays.length === 0) {
+                brgySelect.innerHTML = '<option value="">No barangays found</option>';
+                return;
+              }
+              var html = '<option value="">Select Barangay...</option>';
+              barangays.forEach(function (b) {
+                html += '<option value="' + esc(b.name) + '">' + esc(b.name) + '</option>';
+              });
+              brgySelect.innerHTML = html;
+            }
+          });
+        }
+      };
+
+      App.onBarangaySelectChange = function (brgyName, prefix) {
+        prefix = prefix || 'reg-';
+        var targetInput = document.getElementById(prefix + 'barangay');
+        var citySelect = document.getElementById(prefix + 'city');
+        var provSelect = document.getElementById(prefix + 'province');
+
+        if (!brgyName) return;
+
+        var cityName = (citySelect && citySelect.options[citySelect.selectedIndex]) ? (citySelect.options[citySelect.selectedIndex].getAttribute('data-name') || citySelect.options[citySelect.selectedIndex].text) : '';
+        var provName = (provSelect && provSelect.options[provSelect.selectedIndex]) ? (provSelect.options[provSelect.selectedIndex].getAttribute('data-name') || provSelect.options[provSelect.selectedIndex].text) : '';
+
+        var parts = [];
+        if (brgyName) parts.push(brgyName.indexOf('Barangay') === 0 ? brgyName : 'Barangay ' + brgyName);
+        if (cityName && cityName.indexOf('Select') === -1 && cityName.indexOf('Loading') === -1) parts.push(cityName);
+        if (provName && provName.indexOf('Select') === -1 && provName.indexOf('N/A') === -1) parts.push(provName);
+
+        var fullLoc = parts.join(', ');
+        if (targetInput) {
+          targetInput.value = fullLoc;
+        }
       };
 
       /* ---- Google Authentication ---- */
@@ -384,13 +500,15 @@ var App = window.App = window.App || {};
         render(false);
       };
 
-      /* ---- Profile ---- */
+      /* ---- Profile & Theme ---- */
       App.saveProfile = function (e) {
         e.preventDefault();
         var user = currentUser();
         var users = getUsers();
         var u = users.filter(function (x) { return x.id === user.id; })[0];
         u.fullName = document.getElementById('pf-fullname').value.trim();
+        var emailEl = document.getElementById('pf-email');
+        if (emailEl) u.email = emailEl.value.trim().toLowerCase();
         u.phone = document.getElementById('pf-phone').value.trim();
         u.barangay = document.getElementById('pf-barangay').value.trim();
         u.houseStreet = document.getElementById('pf-housestreet').value.trim();
@@ -401,6 +519,26 @@ var App = window.App = window.App || {};
         toast('Profile updated.');
         render(true);
         return false;
+      };
+
+      App.setProfileTab = function (tab) {
+        state.profileTab = tab;
+        render(true);
+      };
+
+      App.setTheme = function (theme) {
+        state.theme = theme;
+        if (theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          try { localStorage.setItem('sst_theme', 'dark'); } catch (e) {}
+        } else if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          try { localStorage.setItem('sst_theme', 'light'); } catch (e) {}
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          try { localStorage.removeItem('sst_theme'); } catch (e) {}
+        }
+        render(true);
       };
 
       /* ---- In-place Cart UI Sync (No reload, No scroll reset) ---- */
@@ -1068,6 +1206,11 @@ window.App = App;
       App.render = window.render = render;
 
 /* ================= INIT BOOTLOADER ================= */
+      try {
+        var savedTheme = localStorage.getItem('sst_theme');
+        if (savedTheme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) {}
       seedIfNeeded();
       ensureDemoCustomersExist();
       updateProductImagesIfNeeded();

@@ -13,6 +13,7 @@ const modularScripts = [
   'js/store-db.js',
   'js/state.js',
   'js/geolocation.js',
+  'js/ph-location.js',
   'js/map-engine.js',
   'js/views/auth.views.js',
   'js/views/customer.views.js',
@@ -126,7 +127,7 @@ assert.match(app.innerHTML, /Piattos/);
 for (const [view, label] of [
   ['customer-home', 'All products'],
   ['customer-orders', 'Your orders|No orders yet'],
-  ['customer-profile', 'My profile']
+  ['customer-profile', 'My profile|My Profile']
 ]) {
   context.window.App.go(view);
   assert.equal(context.window.state.view, view);

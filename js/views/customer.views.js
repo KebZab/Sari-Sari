@@ -1,28 +1,10 @@
 /* ================= CUSTOMER VIEWS & SHELL ================= */
 /* ================= CUSTOMER SHELL ================= */
-      function renderCustomerShell(user) {
-        var view = state.view;
-        if (['auth-login', 'auth-register', ''].indexOf(view) >= 0) view = 'customer-home';
-        var body;
-        if (view === 'customer-orders') body = renderCustomerOrders(user);
-        else if (view === 'customer-order-detail') body = renderCustomerOrderDetail(user);
-        else if (view === 'customer-checkout') body = renderCheckout(user);
-        else if (view === 'customer-profile') body = renderCustomerProfile(user);
-        else body = renderCustomerHome(user);
-
-        var showTop = (view === 'customer-home');
-        var cc = cartCount();
-        var html = '<div class="mobile-frame' + (cc > 0 && view === 'customer-home' ? ' has-floating-cart' : '') + '">';
-        if (showTop) html += renderCustomerTopbar(user);
-        html += '<div class="screen">' + body + '</div>';
-        if (view === 'customer-home' && cc > 0 && !state.cartOpen) {
-          html += renderFloatingCartBar();
-        }
-        html += renderCustomerBottomNav(view, user);
-        if (state.cartOpen) html += renderCartDrawer(user);
-        if (state.notifOpen) html += renderNotifDrawer(user);
-        html += '</div>';
-        return html;
+      function userInitials(user) {
+        if (!user || !user.fullName) return 'U';
+        var parts = user.fullName.trim().split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
       }
 
       function renderFloatingCartBar() {
@@ -45,10 +27,82 @@
           '</div>';
       }
 
+      function renderCustomerShell(user) {
+        var view = state.view;
+        if (['auth-login', 'auth-register', ''].indexOf(view) >= 0) view = 'customer-home';
+        var body;
+        if (view === 'customer-orders') body = renderCustomerOrders(user);
+        else if (view === 'customer-order-detail') body = renderCustomerOrderDetail(user);
+        else if (view === 'customer-checkout') body = renderCheckout(user);
+        else if (view === 'customer-profile') body = renderCustomerProfile(user);
+        else body = renderCustomerHome(user);
+
+        var showTop = (view === 'customer-home');
+        var cc = cartCount();
+        var html = '<div class="mobile-frame' + (cc > 0 && view === 'customer-home' ? ' has-floating-cart' : '') + '">';
+        if (showTop) {
+          html += renderCustomerTopbar(user);
+        } else {
+          html += renderCustomerSubpageHeader(view, user);
+        }
+        html += '<div class="screen">' + body + '</div>';
+        if (view === 'customer-home' && cc > 0 && !state.cartOpen) {
+          html += renderFloatingCartBar();
+        }
+        html += renderCustomerBottomNav(view, user);
+        if (state.cartOpen) html += renderCartDrawer(user);
+        if (state.notifOpen) html += renderNotifDrawer(user);
+        html += '</div>';
+        return html;
+      }
+
+      function renderCustomerSubpageHeader(view, user) {
+        var titleMap = {
+          'customer-profile': 'My Profile & Account',
+          'customer-orders': 'My Orders',
+          'customer-order-detail': 'Order Details',
+          'customer-checkout': 'Checkout'
+        };
+        var title = titleMap[view] || 'NelGlenn\'s Store';
+        var uc = unreadCount(user.id);
+        var initials = userInitials(user);
+
+        var backAction = "App.go('customer-home')";
+        if (view === 'customer-order-detail') backAction = "App.go('customer-orders')";
+
+        var avatarHtml = user.photoURL ?
+          '<img src="' + esc(user.photoURL) + '" alt="' + esc(user.fullName) + '" class="topbar-avatar-img">' :
+          '<span class="topbar-avatar-txt">' + esc(initials) + '</span>';
+
+        return '' +
+          '<div class="topbar subpage-topbar">' +
+            '<div class="topbar-row">' +
+              '<button class="subpage-back-btn" onclick="' + backAction + '" aria-label="Go back">' +
+                '<span class="back-ic">&larr;</span> Back' +
+              '</button>' +
+              '<div class="subpage-title">' + esc(title) + '</div>' +
+              '<div class="topbar-actions">' +
+                '<button class="topbar-profile-chip' + (view === 'customer-profile' ? ' active' : '') + '" onclick="App.go(\'customer-profile\')" aria-label="Profile">' +
+                  '<div class="topbar-avatar">' + avatarHtml + '</div>' +
+                '</button>' +
+                '<button class="icon-btn" onclick="App.toggleNotif(true)" aria-label="Notifications">' +
+                  ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') +
+                '</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }
+
       function renderCustomerTopbar(user) {
         var uc = unreadCount(user.id);
+        var initials = userInitials(user);
         var addrText = user.barangay ? user.barangay : (state.checkoutCoords ? 'GPS Location Pinned' : 'Set delivery location');
         if (user.landmark && user.barangay) addrText += ' (' + user.landmark + ')';
+
+        var avatarHtml = user.photoURL ?
+          '<img src="' + esc(user.photoURL) + '" alt="' + esc(user.fullName) + '" class="topbar-avatar-img">' :
+          '<span class="topbar-avatar-txt">' + esc(initials) + '</span>';
+
         return '' +
           '<div class="topbar">' +
             '<div class="topbar-row">' +
@@ -60,7 +114,13 @@
                 '</div>' +
               '</div>' +
               '<div class="topbar-actions">' +
-                '<button class="icon-btn" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') + '</button>' +
+                '<button class="topbar-profile-chip" onclick="App.go(\'customer-profile\')" aria-label="Profile" title="View My Profile">' +
+                  '<div class="topbar-avatar">' + avatarHtml + '</div>' +
+                  '<span class="topbar-profile-name">' + esc(user.fullName.split(' ')[0]) + '</span>' +
+                '</button>' +
+                '<button class="icon-btn" onclick="App.toggleNotif(true)" aria-label="Notifications">' +
+                  ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') +
+                '</button>' +
               '</div>' +
             '</div>' +
             '<div class="delivery-bar" onclick="App.openLocationModal()">' +
@@ -189,14 +249,37 @@
 
       function renderCustomerBottomNav(view, user) {
         var cc = cartCount();
-        function item(key, icon, label, badge) {
-          return '<button class="' + (view === key ? 'active' : '') + '" onclick="App.go(\'' + key + '\')"><span class="ic">' + icon + '</span>' + label + (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</button>';
+        var activeOrders = getOrders().filter(function (o) { return o.customerId === user.id && o.status !== 'Delivered' && o.status !== 'Cancelled'; });
+        var hasActive = activeOrders.length > 0;
+        var initials = userInitials(user);
+
+        var profileAvatarInner = user.photoURL ?
+          '<img src="' + esc(user.photoURL) + '" alt="' + esc(user.fullName) + '" class="nav-avatar-img">' :
+          '<span class="nav-avatar-txt">' + esc(initials) + '</span>';
+
+        function item(key, iconHtml, label, badgeHtml, isActive) {
+          return '<button class="nav-tab-btn ' + (isActive ? 'active' : '') + '" onclick="App.go(\'' + key + '\')">' +
+            '<span class="ic">' + iconHtml + '</span>' +
+            '<span class="lbl">' + label + '</span>' +
+            (badgeHtml || '') +
+            (isActive ? '<span class="active-indicator"></span>' : '') +
+          '</button>';
         }
+
         return '<div class="bottom-nav">' +
-          item('customer-home', ICON.home, 'Home') +
-          '<button class="' + (state.cartOpen ? 'active' : '') + '" onclick="App.toggleCart(true)"><span class="ic">' + ICON.cart + '</span>Cart' + (cc > 0 ? '<span class="nav-badge">' + cc + '</span>' : '') + '</button>' +
-          item('customer-orders', ICON.orders, 'Orders') +
-          item('customer-profile', ICON.profile, 'Profile') +
+          item('customer-home', ICON.home, 'Home', null, view === 'customer-home') +
+          '<button class="nav-tab-btn ' + (state.cartOpen ? 'active' : '') + '" onclick="App.toggleCart(true)">' +
+            '<span class="ic">' + ICON.cart + '</span>' +
+            '<span class="lbl">Cart</span>' +
+            (cc > 0 ? '<span class="nav-badge">' + cc + '</span>' : '') +
+            (state.cartOpen ? '<span class="active-indicator"></span>' : '') +
+          '</button>' +
+          item('customer-orders', ICON.orders, 'Orders', hasActive ? '<span class="nav-dot-badge"></span>' : null, view === 'customer-orders' || view === 'customer-order-detail') +
+          '<button class="nav-tab-btn nav-tab-profile ' + (view === 'customer-profile' ? 'active' : '') + '" onclick="App.go(\'customer-profile\')">' +
+            '<span class="ic nav-avatar-wrap">' + profileAvatarInner + '</span>' +
+            '<span class="lbl">Profile</span>' +
+            (view === 'customer-profile' ? '<span class="active-indicator"></span>' : '') +
+          '</button>' +
           '</div>';
       }
 
@@ -447,6 +530,15 @@
       /* ---------- Profile ---------- */
       function renderCustomerProfile(user) {
         var isGoogle = (user.authProvider === 'google' || user.googleUid || user.email);
+        var initials = userInitials(user);
+        var userOrders = getOrders().filter(function (o) { return o.customerId === user.id; });
+        var activeOrders = userOrders.filter(function (o) { return o.status !== 'Delivered' && o.status !== 'Cancelled'; });
+        var activeTab = state.profileTab || 'info';
+
+        var avatarXL = user.photoURL ?
+          '<img src="' + esc(user.photoURL) + '" alt="' + esc(user.fullName) + '">' :
+          '<span>' + esc(initials) + '</span>';
+
         var googleBadge = isGoogle ?
           '<div class="profile-google-badge">' +
           GOOGLE_ICON_SVG +
@@ -456,19 +548,173 @@
           '</div>' +
           '</div>' : '';
 
+        var heroCard = '' +
+          '<div class="profile-hero-card">' +
+            '<div class="profile-user-row">' +
+              '<div class="profile-avatar-xl">' +
+                avatarXL +
+                '<span class="profile-avatar-online" title="Active Account"></span>' +
+              '</div>' +
+              '<div class="profile-user-info">' +
+                '<div class="profile-user-name">' + esc(user.fullName) + '</div>' +
+                '<div class="profile-user-contact">📞 ' + esc(user.phone || 'No phone saved') + '</div>' +
+                '<div class="profile-badge-vip">⭐ Verified Buyer &middot; Sari-Sari Member</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="profile-stats-grid">' +
+              '<div class="profile-stat-box" onclick="App.go(\'customer-orders\')" style="cursor:pointer;" title="View all orders">' +
+                '<div class="profile-stat-val">' + userOrders.length + '</div>' +
+                '<div class="profile-stat-lbl">Total Orders</div>' +
+              '</div>' +
+              '<div class="profile-stat-box" onclick="App.go(\'customer-orders\')" style="cursor:pointer;" title="View active orders">' +
+                '<div class="profile-stat-val">' + activeOrders.length + '</div>' +
+                '<div class="profile-stat-lbl">Active Delivery</div>' +
+              '</div>' +
+              '<div class="profile-stat-box" onclick="App.openLocationModal()" style="cursor:pointer;" title="Update delivery location">' +
+                '<div class="profile-stat-val" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(user.barangay || 'GPS Location') + '</div>' +
+                '<div class="profile-stat-lbl">Default Area</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+
+        var tabsNav = '' +
+          '<div class="profile-nav-tabs">' +
+            '<button type="button" class="profile-tab-btn' + (activeTab === 'info' ? ' active' : '') + '" onclick="App.setProfileTab(\'info\')">' +
+              '👤 Details' +
+            '</button>' +
+            '<button type="button" class="profile-tab-btn' + (activeTab === 'security' ? ' active' : '') + '" onclick="App.setProfileTab(\'security\')">' +
+              '🔒 Security' +
+            '</button>' +
+            '<button type="button" class="profile-tab-btn' + (activeTab === 'settings' ? ' active' : '') + '" onclick="App.setProfileTab(\'settings\')">' +
+              '⚙️ Settings' +
+            '</button>' +
+          '</div>';
+
+        var currentTheme = (typeof document !== 'undefined' && document.documentElement) ? document.documentElement.getAttribute('data-theme') : null;
+
+        var tabContent = '';
+        if (activeTab === 'security') {
+          tabContent = '' +
+            '<div class="profile-section-card">' +
+              '<div class="profile-sec-header">' +
+                '<div class="profile-sec-icon">🔒</div>' +
+                '<div>' +
+                  '<div class="profile-sec-title">Account Security & Sign-in</div>' +
+                  '<div class="profile-sec-desc">Manage your authentication and password</div>' +
+                '</div>' +
+              '</div>' +
+              googleBadge +
+              '<form onsubmit="return App.saveProfile(event)">' +
+                '<input id="pf-fullname" type="hidden" value="' + esc(user.fullName) + '">' +
+                '<input id="pf-phone" type="hidden" value="' + esc(user.phone || '') + '">' +
+                '<input id="pf-barangay" type="hidden" value="' + esc(user.barangay || '') + '">' +
+                '<input id="pf-housestreet" type="hidden" value="' + esc(user.houseStreet || '') + '">' +
+                '<input id="pf-landmark" type="hidden" value="' + esc(user.landmark || '') + '">' +
+                '<div class="field">' +
+                  '<label>' + (isGoogle ? 'Optional account password' : 'New password (leave blank to keep current)') + '</label>' +
+                  '<input id="pf-password" type="password" placeholder="Enter new password">' +
+                '</div>' +
+                '<button type="submit" class="btn btn-primary btn-block">Update Security Settings</button>' +
+              '</form>' +
+            '</div>';
+        } else if (activeTab === 'settings') {
+          tabContent = '' +
+            '<div class="profile-section-card">' +
+              '<div class="profile-sec-header">' +
+                '<div class="profile-sec-icon">🎨</div>' +
+                '<div>' +
+                  '<div class="profile-sec-title">App Interface & Theme</div>' +
+                  '<div class="profile-sec-desc">Customize display theme and preferences</div>' +
+                '</div>' +
+              '</div>' +
+              '<form onsubmit="return App.saveProfile(event)" style="display:none;">' +
+                '<input id="pf-fullname" type="hidden" value="' + esc(user.fullName) + '">' +
+                '<input id="pf-phone" type="hidden" value="' + esc(user.phone || '') + '">' +
+                '<input id="pf-barangay" type="hidden" value="' + esc(user.barangay || '') + '">' +
+                '<input id="pf-housestreet" type="hidden" value="' + esc(user.houseStreet || '') + '">' +
+                '<input id="pf-landmark" type="hidden" value="' + esc(user.landmark || '') + '">' +
+                '<input id="pf-password" type="hidden" value="">' +
+              '</form>' +
+              '<div class="field"><label>Appearance Theme Mode</label></div>' +
+              '<div class="theme-selector-grid">' +
+                '<button type="button" class="theme-opt-btn' + (currentTheme !== 'dark' ? ' active' : '') + '" onclick="App.setTheme(\'light\')">☀️ Light Theme</button>' +
+                '<button type="button" class="theme-opt-btn' + (currentTheme === 'dark' ? ' active' : '') + '" onclick="App.setTheme(\'dark\')">🌙 Dark Theme</button>' +
+              '</div>' +
+              '<div class="divider"></div>' +
+              '<div class="field"><label>Quick Navigation Shortcuts</label></div>' +
+              '<div style="display:flex;flex-direction:column;gap:8px;">' +
+                '<button type="button" class="btn btn-outline btn-block" onclick="App.go(\'customer-orders\')">📦 View My Orders</button>' +
+                '<button type="button" class="btn btn-outline btn-block" onclick="App.openLocationModal()">📍 Update Location Pin on Map</button>' +
+              '</div>' +
+            '</div>';
+        } else {
+          // Default 'info' tab
+          var pfProvOptionsHtml = (typeof PhLocationAPI !== 'undefined' && PhLocationAPI.getProvinceOptionsHtml)
+            ? PhLocationAPI.getProvinceOptionsHtml()
+            : '<option value="">Select Province or Metro Manila...</option>';
+
+          tabContent = '' +
+            '<div class="profile-section-card">' +
+              '<div class="profile-sec-header">' +
+                '<div class="profile-sec-icon">👤</div>' +
+                '<div>' +
+                  '<div class="profile-sec-title">Personal Details & Delivery Address</div>' +
+                  '<div class="profile-sec-desc">Update your contact information and delivery address</div>' +
+                '</div>' +
+              '</div>' +
+              googleBadge +
+              '<form onsubmit="return App.saveProfile(event)">' +
+                '<div class="field">' +
+                  '<label>Full name</label>' +
+                  '<input id="pf-fullname" type="text" value="' + esc(user.fullName) + '" required placeholder="Juan Dela Cruz">' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>Email address (for login)</label>' +
+                  '<input id="pf-email" type="email" value="' + esc(user.email || '') + '" placeholder="name@example.com">' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>Phone number (Required for delivery updates)</label>' +
+                  '<input id="pf-phone" type="tel" value="' + esc(user.phone || '') + '" placeholder="09XXXXXXXXX">' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>Province / Area</label>' +
+                  '<select id="pf-province" onchange="App.onProvinceChange(this.value, \'pf-\')">' + pfProvOptionsHtml + '</select>' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>City / Municipality</label>' +
+                  '<select id="pf-city" onchange="App.onCityChange(this.value, \'pf-\')"><option value="">Select City / Municipality...</option></select>' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>Barangay</label>' +
+                  '<select id="pf-barangay-select" style="margin-bottom:6px;" onchange="App.onBarangaySelectChange(this.value, \'pf-\')"><option value="">Select Barangay...</option></select>' +
+                  '<div style="display:flex;gap:8px;align-items:center;">' +
+                    '<input id="pf-barangay" type="text" value="' + esc(user.barangay || '') + '" required style="flex:1;" placeholder="Barangay / Village">' +
+                    '<button type="button" class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="App.openLocationModal()" title="Select on map">📍 Map</button>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>House number / street</label>' +
+                  '<input id="pf-housestreet" type="text" value="' + esc(user.houseStreet || '') + '" required placeholder="Blk 1 Lot 2 Rizal Ave.">' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>Nearby landmark</label>' +
+                  '<input id="pf-landmark" type="text" value="' + esc(user.landmark || '') + '" placeholder="Near chapel, blue gate, etc.">' +
+                '</div>' +
+                '<div class="field">' +
+                  '<label>' + (isGoogle ? 'Optional account password' : 'New password (leave blank to keep current)') + '</label>' +
+                  '<input id="pf-password" type="password" placeholder="********">' +
+                '</div>' +
+                '<button type="submit" class="btn btn-primary btn-block" style="margin-top:6px;">💾 Save Profile Changes</button>' +
+              '</form>' +
+            '</div>';
+        }
+
         return '' +
-          '<div class="section-title" style="margin-top:6px;">' + ICON.profile + ' My profile</div>' +
-          googleBadge +
-          '<div class="card">' +
-          '<form onsubmit="return App.saveProfile(event)">' +
-          '<div class="field"><label>Full name</label><input id="pf-fullname" type="text" value="' + esc(user.fullName) + '" required></div>' +
-          '<div class="field"><label>Phone number (Required for delivery updates)</label><input id="pf-phone" type="tel" value="' + esc(user.phone || '') + '" placeholder="09XXXXXXXXX" required></div>' +
-          '<div class="field"><label>Barangay</label><input id="pf-barangay" type="text" value="' + esc(user.barangay || '') + '" required></div>' +
-          '<div class="field"><label>House number / street</label><input id="pf-housestreet" type="text" value="' + esc(user.houseStreet || '') + '" required></div>' +
-          '<div class="field"><label>Nearby landmark</label><input id="pf-landmark" type="text" value="' + esc(user.landmark || '') + '"></div>' +
-          '<div class="field"><label>' + (isGoogle ? 'Optional account password' : 'New password (leave blank to keep current)') + '</label><input id="pf-password" type="password" placeholder="********"></div>' +
-          '<button type="submit" class="btn btn-primary btn-block">Save changes</button>' +
-          '</form>' +
-          '</div>' +
-          '<button class="btn btn-outline btn-block" style="margin-top:4px;" onclick="App.logout()">' + ICON.logout + ' Log out</button>';
+          '<div class="profile-container">' +
+            heroCard +
+            tabsNav +
+            tabContent +
+            '<button class="btn btn-danger btn-block" style="margin-top:4px;" onclick="App.logout()">' + ICON.logout + ' Log out</button>' +
+            '<div style="text-align:center;font-size:11px;color:var(--ink-400);margin-top:4px;">NelGlenn\'s Sari-Sari Store &middot; Mobile App v2.4</div>' +
+          '</div>';
       }

@@ -33,9 +33,14 @@ var GOOGLE_ICON_SVG = '<svg class="google-icon" viewBox="0 0 24 24" width="18" h
         var err = state.registerError || {};
         function ef(field) { return err[field] ? ' has-error' : ''; }
         function em(field) { return err[field] ? '<div class="field-error">' + esc(err[field]) + '</div>' : ''; }
+
+        var provOptionsHtml = (typeof PhLocationAPI !== 'undefined' && PhLocationAPI.getProvinceOptionsHtml)
+          ? PhLocationAPI.getProvinceOptionsHtml()
+          : '<option value="">Select Province or Metro Manila...</option>';
+
         return '' +
           '<div class="auth-bg">' +
-          '<div class="auth-card" style="max-width:460px;">' +
+          '<div class="auth-card" style="max-width:480px;">' +
           '<div class="auth-logo"><div class="mark">' + ICON.store + '</div><div class="auth-title">Create account</div></div>' +
           '<div class="auth-sub">Register to order from the sari-sari store</div>' +
           (state.userPlaceName ? '<div class="loc-detected-badge" style="margin-bottom:12px;width:100%;"><span>📍</span><span>Auto-detected: ' + esc(state.userPlaceName) + '</span></div>' : '') +
@@ -43,11 +48,15 @@ var GOOGLE_ICON_SVG = '<svg class="google-icon" viewBox="0 0 24 24" width="18" h
           GOOGLE_ICON_SVG +
           '<span>Sign up with Google</span>' +
           '</button>' +
-          '<div class="auth-divider"><span>or register with phone</span></div>' +
+          '<div class="auth-divider"><span>or register with phone / email</span></div>' +
           '<form onsubmit="return App.handleRegister(event)" oninput="App.clearRegisterError(event)">' +
           '<div class="field' + ef('fullName') + '"><label>Full name</label><input id="reg-fullname" type="text" placeholder="Juan Dela Cruz">' + em('fullName') + '</div>' +
           '<div class="field' + ef('phone') + '"><label>Phone number</label><input id="reg-phone" type="tel" placeholder="09XXXXXXXXX">' + em('phone') + '</div>' +
-          '<div class="field' + ef('barangay') + '"><label>Barangay</label><input id="reg-barangay" type="text" placeholder="Barangay San Isidro" value="' + esc(state.detectedBarangay || '') + '">' + em('barangay') + '</div>' +
+          '<div class="field' + ef('email') + '"><label>Email address (for login)</label><input id="reg-email" type="email" placeholder="name@example.com">' + em('email') + '</div>' +
+          '<div class="field"><label>Province / Area</label><select id="reg-province" onchange="App.onProvinceChange(this.value, \'reg-\')">' + provOptionsHtml + '</select></div>' +
+          '<div class="field"><label>City / Municipality</label><select id="reg-city" onchange="App.onCityChange(this.value, \'reg-\')"><option value="">Select City / Municipality...</option></select></div>' +
+          '<div class="field' + ef('barangay') + '"><label>Barangay</label><select id="reg-barangay-select" style="margin-bottom:6px;" onchange="App.onBarangaySelectChange(this.value, \'reg-\')"><option value="">Select Barangay...</option></select><input id="reg-barangay" type="text" placeholder="Barangay / Village" value="' + esc(state.detectedBarangay || '') + '">' + em('barangay') + '</div>' +
+
           '<div class="field' + ef('houseStreet') + '"><label>House number / street</label><input id="reg-housestreet" type="text" placeholder="123 Mabini St." value="' + esc(state.detectedStreet || '') + '">' + em('houseStreet') + '</div>' +
           '<div class="field' + ef('landmark') + '"><label>Nearby landmark</label><input id="reg-landmark" type="text" placeholder="Near the covered court">' + em('landmark') + '</div>' +
           '<div class="field' + ef('password') + '"><label>Password</label><input id="reg-password" type="password" placeholder="At least 6 characters">' + em('password') + '</div>' +
