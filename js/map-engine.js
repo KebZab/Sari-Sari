@@ -171,6 +171,14 @@
 
       function subscribeToRiderLocation(orderId, callback) {
         var unsubs = [];
+        var latestTimestamp = 0;
+        function emitLatest(loc) {
+          if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
+          var timestamp = Date.parse(loc.timestamp);
+          if (!Number.isFinite(timestamp) || timestamp <= latestTimestamp) return;
+          latestTimestamp = timestamp;
+          callback(loc);
+        }
 
         // 1. Firebase Realtime Database
         if (fbRtdb) {
@@ -179,7 +187,7 @@
             var rtdbHandler = function (snap) {
               var val = snap.val();
               if (val && typeof val.latitude === 'number' && typeof val.longitude === 'number') {
-                callback({
+                emitLatest({
                   lat: val.latitude,
                   lng: val.longitude,
                   speed: val.speed,
@@ -205,7 +213,7 @@
                 if (doc.exists) {
                   var d = doc.data();
                   if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
-                    callback({
+                    emitLatest({
                       lat: d.latitude,
                       lng: d.longitude,
                       speed: d.speed,
@@ -229,7 +237,7 @@
             if (!window.sstRiderChannel) window.sstRiderChannel = new BroadcastChannel('sst_rider_gps');
             var bcHandler = function (e) {
               if (e.data && e.data.orderId === orderId && e.data.coords) {
-                callback(Object.assign({}, e.data.coords, { source: 'BroadcastChannel' }));
+                emitLatest(Object.assign({}, e.data.coords, { source: 'BroadcastChannel' }));
               }
             };
             window.sstRiderChannel.addEventListener('message', bcHandler);
@@ -245,7 +253,7 @@
           if (cached) {
             var parsed = JSON.parse(cached);
             if (parsed && Number.isFinite(parsed.lat) && Number.isFinite(parsed.lng)) {
-              callback(Object.assign({}, parsed, { source: 'Local Cache' }));
+              emitLatest(Object.assign({}, parsed, { source: 'Local Cache' }));
             }
           }
         } catch (e) { }
@@ -347,9 +355,11 @@
         // 1. Fetch OSRM Road Route
         React.useEffect(function () {
           if (!hasStoreGps(store)) return;
+          var routeActive = true;
           fetchOSRMRoute(store.lat, store.lng, custCoords.lat, custCoords.lng, function (info) {
-            if (info) setRouteInfo(Object.assign({}, info, { source: 'store' }));
+            if (routeActive && info) setRouteInfo(Object.assign({}, info, { source: 'store' }));
           });
+          return function () { routeActive = false; };
         }, [store.lat, store.lng, custCoords.lat, custCoords.lng]);
 
         // 2. Initialize Leaflet Map with OpenStreetMap
@@ -481,6 +491,11 @@
           }
         };
 
+        var routeOrigin = riderLoc || (hasStoreGps(store) ? store : null);
+        var customerMapsUrl = routeOrigin ? 'https://www.google.com/maps/dir/?api=1&origin=' +
+          routeOrigin.lat + ',' + routeOrigin.lng + '&destination=' + custCoords.lat + ',' + custCoords.lng +
+          '&travelmode=driving' : '';
+
         return h('div', { className: 'card live-tracking-card' },
           h('div', { className: 'tracking-eta-box' },
             h('div', { className: 'eta-left' },
@@ -509,6 +524,7 @@
           ),
           h('div', { className: 'tracking-actions', style: { marginTop: '10px' } },
             h('button', { className: 'btn btn-outline btn-sm', type: 'button', onClick: recenter }, '🎯 Center on Route'),
+            customerMapsUrl ? h('a', { className: 'btn btn-outline btn-sm', href: customerMapsUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Open Route') : null,
             h('a', { className: 'btn btn-outline btn-sm', href: 'tel:09171234567' }, '📞 Call Store Owner')
           )
         );
@@ -527,7 +543,7 @@
         var setRiderPositions = _rp[1];
 
         // Track which order is selected for navigation
-        var _sel = React.useState(null);
+        var _sel = React.useState(state.selectedDeliveryOrderId || null);
         var selectedOrderId = _sel[0];
         var setSelectedOrderId = _sel[1];
 
@@ -542,6 +558,10 @@
         var customerMarkersRef = React.useRef({});
         var routePolylinesRef = React.useRef({});
         var storeMarkerRef = React.useRef(null);
+        var orderSignature = orders.map(function (o) {
+          var c = getOrderCoords(o);
+          return [o.id, o.status, c ? c.lat : '', c ? c.lng : ''].join(':');
+        }).join('|');
 
         // Initialize Map
         React.useEffect(function () {
@@ -597,6 +617,7 @@
 
             // Clicking a customer marker on the map also selects that order
             cm.on('click', function () {
+              state.selectedDeliveryOrderId = o.id;
               setSelectedOrderId(o.id);
             });
           });
@@ -619,12 +640,13 @@
             routePolylinesRef.current = {};
             storeMarkerRef.current = null;
           };
-        }, [store.lat, store.lng, orders.length]);
+        }, [store.lat, store.lng, orderSignature]);
 
         // When selectedOrderId changes, fetch and draw the route for ONLY that order
         React.useEffect(function () {
           var map = mapInstanceRef.current;
           if (!map) return;
+          var routeActive = true;
 
           // Remove all existing route polylines
           Object.keys(routePolylinesRef.current).forEach(function (key) {
@@ -647,18 +669,25 @@
               if (c) allPts.push([c.lat, c.lng]);
             });
             if (allPts.length > 1) map.fitBounds(allPts, { padding: [50, 50], maxZoom: 16 });
-            return;
+            return function () { routeActive = false; };
           }
 
           var selectedOrder = orders.filter(function (o) { return o.id === selectedOrderId; })[0];
-          if (!selectedOrder) return;
+          if (!selectedOrder) {
+            state.selectedDeliveryOrderId = null;
+            setSelectedOrderId(null);
+            return function () { routeActive = false; };
+          }
 
           var coords = getOrderCoords(selectedOrder);
-          if (!coords || !hasStoreGps(store)) return;
+          if (!coords || !hasStoreGps(store)) {
+            setSelectedRouteInfo(null);
+            return function () { routeActive = false; };
+          }
 
           // Fetch and draw OSRM road route for this single order
           fetchOSRMRoute(store.lat, store.lng, coords.lat, coords.lng, function (rInfo) {
-            if (!mapInstanceRef.current || !rInfo) return;
+            if (!routeActive || !mapInstanceRef.current || !rInfo) return;
 
             // Draw the actual road route polyline (solid green, thick)
             var routeLine = L.polyline(rInfo.latLngs, {
@@ -701,7 +730,8 @@
           if (customerMarkersRef.current[selectedOrderId]) {
             customerMarkersRef.current[selectedOrderId].openPopup();
           }
-        }, [selectedOrderId, orders.length]);
+          return function () { routeActive = false; };
+        }, [selectedOrderId, orderSignature, store.lat, store.lng]);
 
         // Subscribe to live rider updates for all active orders
         React.useEffect(function () {
@@ -748,7 +778,7 @@
             clearInterval(freshnessTimer);
             unsubs.forEach(function (u) { if (u) u(); });
           };
-        }, [orders.length]);
+        }, [orderSignature]);
 
         var handleSetStoreGps = function () {
           App.updateStoreToActualGps();
@@ -766,7 +796,8 @@
 
         var handleSelectOrder = function (orderId) {
           setSelectedOrderId(function (prev) {
-            return prev === orderId ? null : orderId;
+            state.selectedDeliveryOrderId = prev === orderId ? null : orderId;
+            return state.selectedDeliveryOrderId;
           });
         };
 
@@ -809,7 +840,7 @@
                 className: 'btn btn-outline btn-sm',
                 type: 'button',
                 style: { fontSize: '12px', padding: '6px 14px' },
-                onClick: function () { setSelectedOrderId(null); }
+                onClick: function () { state.selectedDeliveryOrderId = null; setSelectedOrderId(null); }
               }, '✕ Clear Route')
             )
           );

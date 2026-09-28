@@ -9,6 +9,7 @@
         locationModalOpen: false,
         locationStatus: 'idle',
         adminSection: 'dashboard',
+        selectedDeliveryOrderId: null,
         sidebarOpen: false,
         cartOpen: false,
         notifOpen: false,

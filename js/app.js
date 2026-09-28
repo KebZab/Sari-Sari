@@ -97,8 +97,17 @@ var App = window.App = window.App || {};
       App.setAdminSection = function (sec) {
         destroyMap('adminDeliveries');
         state.adminSection = sec;
+        state.view = 'admin-' + sec;
         state.sidebarOpen = false;
+        state.notifOpen = false;
         state.orderFilter = 'All';
+        render(false);
+      };
+      App.showDeliveryRoute = function (orderId) {
+        state.selectedDeliveryOrderId = orderId;
+        state.adminSection = 'deliveries';
+        state.view = 'admin-deliveries';
+        state.sidebarOpen = false;
         render(false);
       };
       App.closeModal = function () {
@@ -606,9 +615,10 @@ var App = window.App = window.App || {};
         }
         var now = new Date().toISOString();
         var coords = state.checkoutCoords;
+        var orderId = uid('order');
         var order = {
-          id: uid('order'),
-          orderNumber: nextOrderNumber(),
+          id: orderId,
+          orderNumber: nextOrderNumber(orderId),
           customerId: user.id,
           items: items,
           total: total,
@@ -849,7 +859,7 @@ var App = window.App = window.App || {};
         });
         if (addedCount > 0) {
           toast('Re-ordered ' + addedCount + ' item(s) into your cart!');
-          App.go('customer-cart');
+          App.toggleCart(true);
         } else {
           toast('Selected items are currently out of stock.');
         }

@@ -18,7 +18,7 @@
         if (state.sidebarOpen) html += '<div class="sidebar-backdrop" onclick="App.toggleSidebar(false)"></div>';
         html += renderAdminSidebar(section);
         html += '<div class="admin-main">';
-        html += '<div class="admin-topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="App.toggleSidebar(true)">' + ICON.menu + '</button><h2 style="font-size:18px;font-weight:800;">' + titleMap[section] + '</h2><span class="cloud-badge"><span class="cloud-dot"></span> Firebase Live</span></div><button class="icon-btn" style="background:var(--surface-2);color:var(--ink-700);border:1px solid var(--border);" onclick="App.go(\'admin-notif-drawer\')">' + ICON.bell + (uc > 0 ? '<span class="dot" style="background:var(--red-500);color:#fff;">' + uc + '</span>' : '') + '</button></div>';
+        html += '<div class="admin-topbar"><div style="display:flex;align-items:center;gap:12px;"><button class="hamburger" onclick="App.toggleSidebar(true)">' + ICON.menu + '</button><h2 style="font-size:18px;font-weight:800;">' + titleMap[section] + '</h2><span class="cloud-badge"><span class="cloud-dot"></span> Firebase Live</span></div><button class="icon-btn" style="background:var(--surface-2);color:var(--ink-700);border:1px solid var(--border);" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot" style="background:var(--red-500);color:#fff;">' + uc + '</span>' : '') + '</button></div>';
         html += '<div class="admin-content">' + content + '</div>';
         html += '</div></div>';
         if (state.notifOpen) html += renderNotifDrawer(user);
@@ -204,6 +204,7 @@
                 (o.status === 'Out for Delivery' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark Delivered</button>' : '') +
                 (o.status === 'Out for Delivery' ? '<button type="button" class="btn ' + (isStreaming ? 'btn-danger' : 'btn-outline') + ' btn-sm" onclick="App.togglePhoneGpsStreaming(\'' + o.id + '\')">' + (isStreaming ? '⏹️ Stop Phone GPS' : '📱 Stream Phone GPS') + '</button>' : '') +
                 '<a href="tel:' + esc(o.delivery.phone) + '" class="btn btn-outline btn-sm">' + ICON.phone + ' Call</a>' +
+                (c ? '<button class="btn btn-outline btn-sm" onclick="App.showDeliveryRoute(\'' + o.id + '\')">Show Route</button>' : '') +
                 '<button class="btn btn-outline btn-sm" onclick="App.openOrderModal(\'' + o.id + '\')">🗺️ View Map &amp; Details</button>' +
               '</div>' +
             '</div>';

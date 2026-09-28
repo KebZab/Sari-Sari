@@ -321,17 +321,30 @@ function getStoreLocation() {
 
 /* ================= DATA ACCESS ================= */
       function getUsers() { return dbGet(K.USERS, []); }
-      function saveUsers(u) { dbSet(K.USERS, u); syncToCloud('users', u); }
+      function saveUsers(u) { saveCollection(K.USERS, 'users', u); }
       function getProducts() { return dbGet(K.PRODUCTS, []); }
-      function saveProducts(p) { dbSet(K.PRODUCTS, p); syncToCloud('products', p); }
+      function saveProducts(p) { saveCollection(K.PRODUCTS, 'products', p); }
       function getCategories() { return dbGet(K.CATEGORIES, []); }
-      function saveCategories(c) { dbSet(K.CATEGORIES, c); syncToCloud('categories', c); }
+      function saveCategories(c) { saveCollection(K.CATEGORIES, 'categories', c); }
       function getOrders() { return dbGet(K.ORDERS, []); }
-      function saveOrders(o) { dbSet(K.ORDERS, o); syncToCloud('orders', o); }
+      function saveOrders(o) { saveCollection(K.ORDERS, 'orders', o); }
       function getNotifs() { return dbGet(K.NOTIFS, []); }
-      function saveNotifs(n) { dbSet(K.NOTIFS, n); syncToCloud('notifs', n); }
+      function saveNotifs(n) { saveCollection(K.NOTIFS, 'notifs', n); }
 
-      var _cloudSyncDebounceTimers = {};
+      var pendingCloudDocs = { users: {}, products: {}, categories: {}, orders: {}, notifs: {} };
+
+      function saveCollection(key, coll, items) {
+        var previous = dbGet(key, []);
+        var oldById = {};
+        previous.forEach(function (item) { if (item && item.id) oldById[item.id] = item; });
+        dbSet(key, items);
+        if (!firestoreDb) return;
+        items.forEach(function (item) {
+          if (!item || !item.id || JSON.stringify(item) === JSON.stringify(oldById[item.id])) return;
+          pendingCloudDocs[coll][item.id] = JSON.parse(JSON.stringify(item));
+          syncDocToCloud(coll, item);
+        });
+      }
 
       function syncDocToCloud(coll, item) {
         if (!firestoreDb || !item || !item.id) return;
@@ -344,19 +357,30 @@ function getStoreLocation() {
 
       function syncToCloud(coll, items) {
         if (!firestoreDb || !items) return;
-        if (_cloudSyncDebounceTimers[coll]) clearTimeout(_cloudSyncDebounceTimers[coll]);
-        _cloudSyncDebounceTimers[coll] = setTimeout(function () {
-          try {
-            var batch = firestoreDb.batch();
-            items.forEach(function (item) {
-              if (item && item.id) {
-                var docRef = firestoreDb.collection(coll).doc(item.id);
-                batch.set(docRef, JSON.parse(JSON.stringify(item)), { merge: true });
-              }
-            });
-            batch.commit().catch(function (e) { console.warn("[Firebase] sync error (" + coll + "): ", e); });
-          } catch (e) { console.warn("[Firebase] sync exception:", e); }
-        }, 200);
+        items.forEach(function (item) { syncDocToCloud(coll, item); });
+      }
+
+      function applyCloudSnapshot(key, coll, snap) {
+        var cloudItems = [];
+        snap.forEach(function (doc) { cloudItems.push(doc.data()); });
+        var pending = pendingCloudDocs[coll];
+        var seen = {};
+        cloudItems = cloudItems.map(function (item) {
+          seen[item.id] = true;
+          if (!pending[item.id]) return item;
+          if (JSON.stringify(item) === JSON.stringify(pending[item.id])) {
+            delete pending[item.id];
+            return item;
+          }
+          return pending[item.id];
+        });
+        Object.keys(pending).forEach(function (id) {
+          if (!seen[id]) cloudItems.push(pending[id]);
+        });
+        if (JSON.stringify(dbGet(key, [])) !== JSON.stringify(cloudItems)) {
+          dbSet(key, cloudItems);
+          triggerRealtimeRender();
+        }
       }
 
       function triggerRealtimeRender() {
@@ -374,14 +398,7 @@ function getStoreLocation() {
 
         firestoreDb.collection('products').onSnapshot(function (snap) {
           if (snap && !snap.empty) {
-            var cloudProds = [];
-            snap.forEach(function (doc) { cloudProds.push(doc.data()); });
-            var localRaw = JSON.stringify(getProducts());
-            var cloudRaw = JSON.stringify(cloudProds);
-            if (cloudRaw !== localRaw) {
-              dbSet(K.PRODUCTS, cloudProds);
-              triggerRealtimeRender();
-            }
+            applyCloudSnapshot(K.PRODUCTS, 'products', snap);
           } else {
             var localProds = getProducts();
             if (localProds.length > 0) syncToCloud('products', localProds);
@@ -390,14 +407,7 @@ function getStoreLocation() {
 
         firestoreDb.collection('orders').onSnapshot(function (snap) {
           if (snap && !snap.empty) {
-            var cloudOrders = [];
-            snap.forEach(function (doc) { cloudOrders.push(doc.data()); });
-            var localRaw = JSON.stringify(getOrders());
-            var cloudRaw = JSON.stringify(cloudOrders);
-            if (cloudRaw !== localRaw) {
-              dbSet(K.ORDERS, cloudOrders);
-              triggerRealtimeRender();
-            }
+            applyCloudSnapshot(K.ORDERS, 'orders', snap);
           } else {
             var localOrders = getOrders();
             if (localOrders.length > 0) syncToCloud('orders', localOrders);
@@ -406,14 +416,7 @@ function getStoreLocation() {
 
         firestoreDb.collection('categories').onSnapshot(function (snap) {
           if (snap && !snap.empty) {
-            var cloudCats = [];
-            snap.forEach(function (doc) { cloudCats.push(doc.data()); });
-            var localRaw = JSON.stringify(getCategories());
-            var cloudRaw = JSON.stringify(cloudCats);
-            if (cloudRaw !== localRaw) {
-              dbSet(K.CATEGORIES, cloudCats);
-              triggerRealtimeRender();
-            }
+            applyCloudSnapshot(K.CATEGORIES, 'categories', snap);
           } else {
             var localCats = getCategories();
             if (localCats.length > 0) syncToCloud('categories', localCats);
@@ -422,14 +425,7 @@ function getStoreLocation() {
 
         firestoreDb.collection('users').onSnapshot(function (snap) {
           if (snap && !snap.empty) {
-            var cloudUsers = [];
-            snap.forEach(function (doc) { cloudUsers.push(doc.data()); });
-            var localRaw = JSON.stringify(getUsers());
-            var cloudRaw = JSON.stringify(cloudUsers);
-            if (cloudRaw !== localRaw) {
-              dbSet(K.USERS, cloudUsers);
-              triggerRealtimeRender();
-            }
+            applyCloudSnapshot(K.USERS, 'users', snap);
           } else {
             var localUsers = getUsers();
             if (localUsers.length > 0) syncToCloud('users', localUsers);
@@ -438,14 +434,7 @@ function getStoreLocation() {
 
         firestoreDb.collection('notifs').onSnapshot(function (snap) {
           if (snap && !snap.empty) {
-            var cloudNotifs = [];
-            snap.forEach(function (doc) { cloudNotifs.push(doc.data()); });
-            var localRaw = JSON.stringify(getNotifs());
-            var cloudRaw = JSON.stringify(cloudNotifs);
-            if (cloudRaw !== localRaw) {
-              dbSet(K.NOTIFS, cloudNotifs);
-              triggerRealtimeRender();
-            }
+            applyCloudSnapshot(K.NOTIFS, 'notifs', snap);
           } else {
             var localNotifs = getNotifs();
             if (localNotifs.length > 0) syncToCloud('notifs', localNotifs);
@@ -497,12 +486,10 @@ function getStoreLocation() {
         if (p.stock <= LOW_STOCK_THRESHOLD) return { label: 'Low Stock', cls: 'badge-low' };
         return { label: 'In Stock', cls: 'badge-in' };
       }
-      function nextOrderNumber() {
-        var n = dbGet(K.COUNTER, 0) + 1;
-        dbSet(K.COUNTER, n);
+      function nextOrderNumber(orderId) {
         var d = new Date();
         var ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
-        return 'ORD-' + ymd + '-' + String(n).padStart(4, '0');
+        return 'ORD-' + ymd + '-' + (orderId || uid('order')).split('_').pop().toUpperCase();
       }
 
       function addNotif(targetUserId, message, type, orderId) {

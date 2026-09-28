@@ -91,6 +91,16 @@ inputs['login-phone'] = { value: '09201112222' };
 inputs['login-password'] = { value: 'juan123' };
 context.window.App.handleLogin({ preventDefault() {} });
 assert.match(app.innerHTML, /Piattos/);
+for (const [view, label] of [
+  ['customer-home', 'All products'],
+  ['customer-orders', 'Your orders|No orders yet'],
+  ['customer-profile', 'My profile']
+]) {
+  context.window.App.go(view);
+  assert.equal(context.window.state.view, view);
+  assert.match(app.innerHTML, new RegExp(label));
+}
+context.window.App.go('customer-home');
 const product = JSON.parse(memory.get('sst_products')).find(p => p.name.startsWith('Piattos'));
 for (const item of JSON.parse(memory.get('sst_products'))) {
   if (item.image) assert.ok(fs.existsSync(item.image), `Missing product image: ${item.image}`);
@@ -114,6 +124,10 @@ let orders = JSON.parse(memory.get('sst_orders'));
 assert.equal(orders.length, 1);
 assert.equal(orders[0].delivery.lat, 14.5995);
 assert.equal(orders[0].delivery.lng, 120.9842);
+context.window.App.go('customer-orders');
+context.window.App.reorderOrder(orders[0].id);
+assert.equal(context.window.state.cartOpen, true, 'Re-order must open the cart');
+assert.match(app.innerHTML, /Your Cart/);
 
 // Admin login & Order confirmation
 context.window.App.logout();
@@ -122,6 +136,21 @@ inputs['login-phone'].value = '09171234567';
 inputs['login-password'].value = 'admin123';
 context.window.App.handleLogin({ preventDefault() {} });
 assert.match(app.innerHTML, /Dashboard/);
+for (const section of ['dashboard', 'orders', 'deliveries', 'products', 'inventory', 'customers', 'notifications']) {
+  context.window.App.setAdminSection(section);
+  assert.equal(context.window.state.adminSection, section);
+  assert.equal(context.window.state.view, 'admin-' + section);
+  assert.match(app.innerHTML, new RegExp('<h2[^>]*>' + section[0].toUpperCase() + section.slice(1) + '</h2>'));
+}
+assert.match(app.innerHTML, /onclick="App.toggleNotif\(true\)" aria-label="Notifications"/);
+context.window.App.toggleNotif(true);
+assert.equal(context.window.state.notifOpen, true);
+assert.match(app.innerHTML, /drawer-head"><h3>.*Notifications/);
+context.window.App.setAdminSection('orders');
+assert.equal(context.window.state.notifOpen, false);
+context.window.App.showDeliveryRoute(orders[0].id);
+assert.equal(context.window.state.adminSection, 'deliveries');
+assert.equal(context.window.state.selectedDeliveryOrderId, orders[0].id);
 context.window.App.confirmOrder(orders[0].id);
 orders = JSON.parse(memory.get('sst_orders'));
 assert.equal(orders[0].status, 'Confirmed');
@@ -140,4 +169,22 @@ assert.equal(googleUser.email, 'kevin.demo@gmail.com');
 context.window.App.go('customer-profile');
 assert.match(app.innerHTML, /Connected with Google/);
 
-console.log('Smoke check passed: startup, phone auth, cart/checkout, admin dispatch, and Google Sign-In.');
+// One customer's local order must not rewrite another customer's cloud order.
+const cloudWrites = [];
+context.firestoreDb = {
+  collection(name) {
+    return { doc(id) { return { set(item) { cloudWrites.push({ name, id, item }); return Promise.resolve(); } }; } };
+  }
+};
+const existingOrders = JSON.parse(memory.get('sst_orders'));
+const anotherOrder = { ...existingOrders[0], id: 'order_second_customer', customerId: googleUser.id, orderNumber: 'ORD-SECOND' };
+context.saveOrders(existingOrders.concat(anotherOrder));
+assert.deepEqual(cloudWrites.map(w => w.id), ['order_second_customer']);
+const thirdOrder = { ...anotherOrder, id: 'order_third_customer', orderNumber: 'ORD-THIRD' };
+context.applyCloudSnapshot('sst_orders', 'orders', {
+  forEach(fn) { [existingOrders[0], thirdOrder].forEach(item => fn({ data() { return item; } })); }
+});
+assert.deepEqual(JSON.parse(memory.get('sst_orders')).map(o => o.id).sort(),
+  [existingOrders[0].id, anotherOrder.id, thirdOrder.id].sort());
+
+console.log('Smoke check passed: auth, customer/admin navigation, checkout, delivery routing, and multi-user order sync.');
