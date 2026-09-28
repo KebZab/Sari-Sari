@@ -902,6 +902,8 @@ window.App = App;
         scheduleMapInitialization();
       }
 
+      App.render = window.render = render;
+
 /* ================= INIT BOOTLOADER ================= */
       seedIfNeeded();
       ensureDemoCustomersExist();

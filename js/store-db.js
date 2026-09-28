@@ -359,6 +359,16 @@ function getStoreLocation() {
         }, 200);
       }
 
+      function triggerRealtimeRender() {
+        if (typeof window !== 'undefined' && window.App && typeof window.App.render === 'function') {
+          window.App.render(true);
+        } else if (typeof window !== 'undefined' && typeof window.render === 'function') {
+          window.render(true);
+        } else if (typeof render === 'function') {
+          try { render(true); } catch (e) { }
+        }
+      }
+
       function initCloudRealtimeListeners() {
         if (!firestoreDb) return;
 
@@ -370,7 +380,7 @@ function getStoreLocation() {
             var cloudRaw = JSON.stringify(cloudProds);
             if (cloudRaw !== localRaw) {
               dbSet(K.PRODUCTS, cloudProds);
-              render();
+              triggerRealtimeRender();
             }
           } else {
             var localProds = getProducts();
@@ -386,7 +396,7 @@ function getStoreLocation() {
             var cloudRaw = JSON.stringify(cloudOrders);
             if (cloudRaw !== localRaw) {
               dbSet(K.ORDERS, cloudOrders);
-              render();
+              triggerRealtimeRender();
             }
           } else {
             var localOrders = getOrders();
@@ -402,7 +412,7 @@ function getStoreLocation() {
             var cloudRaw = JSON.stringify(cloudCats);
             if (cloudRaw !== localRaw) {
               dbSet(K.CATEGORIES, cloudCats);
-              render();
+              triggerRealtimeRender();
             }
           } else {
             var localCats = getCategories();
@@ -418,6 +428,7 @@ function getStoreLocation() {
             var cloudRaw = JSON.stringify(cloudUsers);
             if (cloudRaw !== localRaw) {
               dbSet(K.USERS, cloudUsers);
+              triggerRealtimeRender();
             }
           } else {
             var localUsers = getUsers();
@@ -433,7 +444,7 @@ function getStoreLocation() {
             var cloudRaw = JSON.stringify(cloudNotifs);
             if (cloudRaw !== localRaw) {
               dbSet(K.NOTIFS, cloudNotifs);
-              render();
+              triggerRealtimeRender();
             }
           } else {
             var localNotifs = getNotifs();
@@ -449,6 +460,7 @@ function getStoreLocation() {
               if (JSON.stringify(d) !== curLoc) {
                 updateStoreLocationObject(d);
                 dbSet('sst_store_location', d);
+                triggerRealtimeRender();
               }
             }
           }
@@ -461,6 +473,7 @@ function getStoreLocation() {
               if (d && typeof d.lat === 'number' && typeof d.lng === 'number') {
                 updateStoreLocationObject(d);
                 dbSet('sst_store_location', d);
+                triggerRealtimeRender();
               }
             });
           } catch (e) { }
