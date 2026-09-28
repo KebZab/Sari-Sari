@@ -185,6 +185,128 @@ var App = window.App || {};
         toast('Account created. Welcome, ' + newUser.fullName.split(' ')[0] + '!');
         return false;
       };
+
+      /* ---- Google Authentication ---- */
+      App.handleGoogleSignIn = function () {
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+          try {
+            var auth = firebase.auth();
+            var provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('profile');
+            provider.addScope('email');
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            toast('Connecting to Google...');
+            auth.signInWithPopup(provider).then(function (result) {
+              if (result && result.user) {
+                App.processGoogleUser(result.user);
+              }
+            }).catch(function (error) {
+              console.warn("[Google Auth] Popup error:", error);
+              if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+                toast('Google sign-in was cancelled.');
+                return;
+              }
+              if (error.code === 'auth/popup-blocked') {
+                toast('Popup was blocked by browser. Retrying with redirect...');
+                try {
+                  auth.signInWithRedirect(provider);
+                  return;
+                } catch (redErr) {
+                  console.warn("[Google Auth] Redirect error:", redErr);
+                }
+              }
+              App.showGoogleAuthNoticeModal(error);
+            });
+            return;
+          } catch (err) {
+            console.warn("[Google Auth] Exception:", err);
+            App.showGoogleAuthNoticeModal(err);
+            return;
+          }
+        }
+
+        App.showGoogleAuthNoticeModal({ code: 'auth/offline', message: 'Firebase Auth is initializing or offline.' });
+      };
+
+      App.processGoogleUser = function (gUser) {
+        if (!gUser) return;
+        var email = (gUser.email || '').toLowerCase().trim();
+        var displayName = (gUser.displayName || '').trim();
+        var photoURL = gUser.photoURL || '';
+        var uidVal = gUser.uid || '';
+        var phone = (gUser.phoneNumber || '').trim();
+
+        var users = getUsers();
+        var matchedUser = users.filter(function (u) {
+          if (uidVal && u.googleUid === uidVal) return true;
+          if (email && u.email && u.email.toLowerCase() === email) return true;
+          if (phone && u.phone && u.phone === phone) return true;
+          return false;
+        })[0];
+
+        if (matchedUser) {
+          if (uidVal && !matchedUser.googleUid) matchedUser.googleUid = uidVal;
+          if (photoURL && !matchedUser.photoURL) matchedUser.photoURL = photoURL;
+          if (email && !matchedUser.email) matchedUser.email = email;
+          if (displayName && (!matchedUser.fullName || matchedUser.fullName === 'Google User' || matchedUser.fullName === 'Google Customer')) {
+            matchedUser.fullName = displayName;
+          }
+          saveUsers(users);
+          setSession(matchedUser.id);
+          state.view = matchedUser.role === 'admin' ? 'admin-dashboard' : 'customer-home';
+          state.adminSection = 'dashboard';
+          render(false);
+          toast('Welcome back, ' + (matchedUser.fullName ? matchedUser.fullName.split(' ')[0] : 'there') + '!');
+        } else {
+          var newCustomer = {
+            id: (typeof uid === 'function' ? uid('user') : 'user_' + Date.now().toString(36)),
+            role: 'customer',
+            fullName: displayName || (email ? email.split('@')[0] : 'Google Customer'),
+            email: email,
+            phone: phone || '',
+            password: '',
+            googleUid: uidVal,
+            photoURL: photoURL,
+            authProvider: 'google',
+            barangay: state.detectedBarangay || 'Barangay San Isidro',
+            houseStreet: state.detectedStreet || '123 Rizal Ave.',
+            landmark: state.userPlaceName ? 'Near ' + state.userPlaceName : '',
+            createdAt: new Date().toISOString()
+          };
+          users.push(newCustomer);
+          saveUsers(users);
+          setSession(newCustomer.id);
+          state.view = 'customer-home';
+          state.adminSection = 'dashboard';
+          render(false);
+          toast('Signed in with Google! Welcome, ' + (newCustomer.fullName ? newCustomer.fullName.split(' ')[0] : '') + '!');
+        }
+      };
+
+      App.showGoogleAuthNoticeModal = function (err) {
+        state.showGoogleNoticeModal = true;
+        state.googleAuthError = err || null;
+        render(true);
+      };
+
+      App.closeGoogleAuthModal = function () {
+        state.showGoogleNoticeModal = false;
+        state.googleAuthError = null;
+        render(true);
+      };
+
+      App.demoGoogleLogin = function () {
+        App.closeGoogleAuthModal();
+        App.processGoogleUser({
+          uid: 'google_demo_account',
+          displayName: 'Kevin Zabala (Google)',
+          email: 'kevin.demo@gmail.com',
+          photoURL: '',
+          phoneNumber: '09208889999'
+        });
+      };
+
       App.logout = function () {
         stopRiderDeviceGps();
         destroyMap('checkout');
@@ -192,6 +314,9 @@ var App = window.App || {};
         destroyMap('adminDeliveries');
         destroyMap('adminOrderModal');
         clearSession();
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+          try { firebase.auth().signOut().catch(function () {}); } catch (e) {}
+        }
         state.view = 'auth-login';
         state.adminSection = 'dashboard';
         render(false);
@@ -751,3 +876,15 @@ window.App = App;
       if (getSession() && !currentUser()) clearSession();
       render(false);
       initCloudRealtimeListeners();
+
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        try {
+          firebase.auth().getRedirectResult().then(function (result) {
+            if (result && result.user) {
+              App.processGoogleUser(result.user);
+            }
+          }).catch(function (err) {
+            console.warn("[Google Auth] Redirect result check:", err);
+          });
+        } catch (e) {}
+      }

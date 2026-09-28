@@ -2,6 +2,7 @@
 var fbApp = null;
       var firestoreDb = null;
       var fbRtdb = null;
+      var fbAuth = null;
       var isCloudOnline = false;
 
       try {
@@ -15,6 +16,14 @@ var fbApp = null;
             }
           } catch (rtdbErr) {
             console.warn("[Firebase] Realtime Database deferred:", rtdbErr.message);
+          }
+          try {
+            if (firebase.auth) {
+              fbAuth = firebase.auth();
+              console.log("[Firebase] Auth initialized");
+            }
+          } catch (authErr) {
+            console.warn("[Firebase] Auth deferred:", authErr.message);
           }
           isCloudOnline = true;
           console.log("[Firebase] Cloud connected: sarisaristore-ffa71");

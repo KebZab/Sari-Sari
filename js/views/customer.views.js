@@ -425,16 +425,27 @@
 
       /* ---------- Profile ---------- */
       function renderCustomerProfile(user) {
+        var isGoogle = (user.authProvider === 'google' || user.googleUid || user.email);
+        var googleBadge = isGoogle ?
+          '<div class="profile-google-badge">' +
+          GOOGLE_ICON_SVG +
+          '<div>' +
+          '<div style="font-weight:700;font-size:13px;color:var(--ink-900);">Connected with Google</div>' +
+          '<div style="font-size:12px;color:var(--ink-500);">' + esc(user.email || 'Google User') + '</div>' +
+          '</div>' +
+          '</div>' : '';
+
         return '' +
           '<div class="section-title" style="margin-top:6px;">' + ICON.profile + ' My profile</div>' +
+          googleBadge +
           '<div class="card">' +
           '<form onsubmit="return App.saveProfile(event)">' +
           '<div class="field"><label>Full name</label><input id="pf-fullname" type="text" value="' + esc(user.fullName) + '" required></div>' +
-          '<div class="field"><label>Phone number</label><input id="pf-phone" type="tel" value="' + esc(user.phone) + '" required></div>' +
-          '<div class="field"><label>Barangay</label><input id="pf-barangay" type="text" value="' + esc(user.barangay) + '" required></div>' +
-          '<div class="field"><label>House number / street</label><input id="pf-housestreet" type="text" value="' + esc(user.houseStreet) + '" required></div>' +
-          '<div class="field"><label>Nearby landmark</label><input id="pf-landmark" type="text" value="' + esc(user.landmark) + '"></div>' +
-          '<div class="field"><label>New password (leave blank to keep current)</label><input id="pf-password" type="password" placeholder="********"></div>' +
+          '<div class="field"><label>Phone number (Required for delivery updates)</label><input id="pf-phone" type="tel" value="' + esc(user.phone || '') + '" placeholder="09XXXXXXXXX" required></div>' +
+          '<div class="field"><label>Barangay</label><input id="pf-barangay" type="text" value="' + esc(user.barangay || '') + '" required></div>' +
+          '<div class="field"><label>House number / street</label><input id="pf-housestreet" type="text" value="' + esc(user.houseStreet || '') + '" required></div>' +
+          '<div class="field"><label>Nearby landmark</label><input id="pf-landmark" type="text" value="' + esc(user.landmark || '') + '"></div>' +
+          '<div class="field"><label>' + (isGoogle ? 'Optional account password' : 'New password (leave blank to keep current)') + '</label><input id="pf-password" type="password" placeholder="********"></div>' +
           '<button type="submit" class="btn btn-primary btn-block">Save changes</button>' +
           '</form>' +
           '</div>' +

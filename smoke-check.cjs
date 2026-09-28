@@ -97,6 +97,7 @@ assert.equal(orders[0].delivery.lng, 123.9);
 
 // Admin login & Order confirmation
 context.window.App.logout();
+assert.match(app.innerHTML, /Sign in with Google/);
 inputs['login-phone'].value = '09171234567';
 inputs['login-password'].value = 'admin123';
 context.window.App.handleLogin({ preventDefault() {} });
@@ -106,4 +107,17 @@ orders = JSON.parse(memory.get('sst_orders'));
 assert.equal(orders[0].status, 'Confirmed');
 assert.equal(JSON.parse(memory.get('sst_products')).find(p => p.id === product.id).stock, product.stock - 1);
 
-console.log('Smoke check passed: startup, customer login/cart/checkout, admin login/order confirmation.');
+// Google Sign-In flow
+context.window.App.logout();
+assert.match(app.innerHTML, /btn-google/);
+context.window.App.demoGoogleLogin();
+assert.match(app.innerHTML, /Piattos/);
+const currentSession = JSON.parse(memory.get('sst_session'));
+const googleUser = JSON.parse(memory.get('sst_users')).find(u => u.id === currentSession.userId);
+assert.ok(googleUser);
+assert.equal(googleUser.authProvider, 'google');
+assert.equal(googleUser.email, 'kevin.demo@gmail.com');
+context.window.App.go('customer-profile');
+assert.match(app.innerHTML, /Connected with Google/);
+
+console.log('Smoke check passed: startup, phone auth, cart/checkout, admin dispatch, and Google Sign-In.');

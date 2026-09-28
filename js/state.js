@@ -26,7 +26,9 @@
         checkoutGpsStatus: 'idle',
         adminGpsAttempted: false,
         loginError: '',
-        registerError: {}
+        registerError: {},
+        showGoogleNoticeModal: false,
+        googleAuthError: null
       };
 window.state = state;
 
