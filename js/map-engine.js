@@ -526,10 +526,22 @@
         var riderPositions = _rp[0];
         var setRiderPositions = _rp[1];
 
+        // Track which order is selected for navigation
+        var _sel = React.useState(null);
+        var selectedOrderId = _sel[0];
+        var setSelectedOrderId = _sel[1];
+
+        // Track route info for display
+        var _ri = React.useState(null);
+        var selectedRouteInfo = _ri[0];
+        var setSelectedRouteInfo = _ri[1];
+
         var mapElRef = React.useRef(null);
         var mapInstanceRef = React.useRef(null);
         var riderMarkersRef = React.useRef({});
+        var customerMarkersRef = React.useRef({});
         var routePolylinesRef = React.useRef({});
+        var storeMarkerRef = React.useRef(null);
 
         // Initialize Map
         React.useEffect(function () {
@@ -544,19 +556,22 @@
           createOsmTileLayer().addTo(map);
 
           // Store marker (Admin's actual store location)
-          if (hasStoreGps(store)) L.marker([store.lat, store.lng], { icon: createStoreIcon() }).addTo(map)
-            .bindPopup('<b>' + esc(store.name) + '</b><br>Admin GPS location');
+          if (hasStoreGps(store)) {
+            storeMarkerRef.current = L.marker([store.lat, store.lng], { icon: createStoreIcon() }).addTo(map)
+              .bindPopup('<b>' + esc(store.name) + '</b><br>Admin GPS location');
+          }
 
           var allPoints = hasStoreGps(store) ? [[store.lat, store.lng]] : [];
 
-          // Plot each active order
+          // Plot each active order as a customer marker (no routes drawn yet)
           orders.forEach(function (o) {
             var c = getOrderCoords(o);
             if (!c) return;
             allPoints.push([c.lat, c.lng]);
 
             var cm = L.marker([c.lat, c.lng], {
-              icon: createCustomerIcon(o.delivery.fullName, o.orderNumber, o.status === 'Out for Delivery')
+              icon: createCustomerIcon(o.delivery.fullName, o.orderNumber, o.status === 'Out for Delivery'),
+              opacity: 0.7
             }).addTo(map);
 
             var distKm = hasStoreGps(store) ? calcDistanceKm(store.lat, store.lng, c.lat, c.lng) : null;
@@ -577,17 +592,12 @@
               '</div>';
             cm.bindPopup(popupHtml);
 
-            // Fetch OSRM Route for each concurrent order
-            if (hasStoreGps(store)) fetchOSRMRoute(store.lat, store.lng, c.lat, c.lng, function (rInfo) {
-              if (!mapInstanceRef.current || !rInfo) return;
-              var rColor = (o.status === 'Out for Delivery') ? '#2DA56E' : '#E49B2C';
-              var line = L.polyline(rInfo.latLngs, {
-                color: rColor,
-                weight: 4,
-                opacity: 0.8,
-                dashArray: '6, 6'
-              }).addTo(mapInstanceRef.current);
-              routePolylinesRef.current[o.id] = { line: line, rInfo: rInfo };
+            // Store the marker reference for later highlighting
+            customerMarkersRef.current[o.id] = cm;
+
+            // Clicking a customer marker on the map also selects that order
+            cm.on('click', function () {
+              setSelectedOrderId(o.id);
             });
           });
 
@@ -596,7 +606,7 @@
           } else if (allPoints.length === 1) {
             map.setView(allPoints[0], 15);
           } else {
-            map.setView([0, 0], 2);
+            map.setView([14.5995, 120.9842], 14);
           }
 
           mapInstanceRef.current = map;
@@ -605,9 +615,93 @@
             try { map.remove(); } catch (e) { }
             mapInstanceRef.current = null;
             riderMarkersRef.current = {};
+            customerMarkersRef.current = {};
             routePolylinesRef.current = {};
+            storeMarkerRef.current = null;
           };
         }, [store.lat, store.lng, orders.length]);
+
+        // When selectedOrderId changes, fetch and draw the route for ONLY that order
+        React.useEffect(function () {
+          var map = mapInstanceRef.current;
+          if (!map) return;
+
+          // Remove all existing route polylines
+          Object.keys(routePolylinesRef.current).forEach(function (key) {
+            try { map.removeLayer(routePolylinesRef.current[key]); } catch (e) { }
+          });
+          routePolylinesRef.current = {};
+
+          // Dim all customer markers, then highlight selected
+          Object.keys(customerMarkersRef.current).forEach(function (oid) {
+            var m = customerMarkersRef.current[oid];
+            if (m) m.setOpacity(selectedOrderId ? (oid === selectedOrderId ? 1.0 : 0.4) : 0.7);
+          });
+
+          if (!selectedOrderId) {
+            setSelectedRouteInfo(null);
+            // Fit all points when nothing is selected
+            var allPts = hasStoreGps(store) ? [[store.lat, store.lng]] : [];
+            orders.forEach(function (o) {
+              var c = getOrderCoords(o);
+              if (c) allPts.push([c.lat, c.lng]);
+            });
+            if (allPts.length > 1) map.fitBounds(allPts, { padding: [50, 50], maxZoom: 16 });
+            return;
+          }
+
+          var selectedOrder = orders.filter(function (o) { return o.id === selectedOrderId; })[0];
+          if (!selectedOrder) return;
+
+          var coords = getOrderCoords(selectedOrder);
+          if (!coords || !hasStoreGps(store)) return;
+
+          // Fetch and draw OSRM road route for this single order
+          fetchOSRMRoute(store.lat, store.lng, coords.lat, coords.lng, function (rInfo) {
+            if (!mapInstanceRef.current || !rInfo) return;
+
+            // Draw the actual road route polyline (solid green, thick)
+            var routeLine = L.polyline(rInfo.latLngs, {
+              color: '#1A6B49',
+              weight: 6,
+              opacity: 0.9,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(mapInstanceRef.current);
+
+            // Also draw a semi-transparent wider "glow" behind the route
+            var routeGlow = L.polyline(rInfo.latLngs, {
+              color: '#2DA56E',
+              weight: 12,
+              opacity: 0.25,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }).addTo(mapInstanceRef.current);
+            routeGlow.bringToBack();
+
+            routePolylinesRef.current['glow'] = routeGlow;
+            routePolylinesRef.current[selectedOrderId] = routeLine;
+
+            // Zoom to fit the route
+            if (rInfo.latLngs.length > 1) {
+              mapInstanceRef.current.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 16 });
+            }
+
+            // Update route info for the info bar
+            setSelectedRouteInfo({
+              distanceKm: rInfo.distanceKm,
+              etaMinutes: rInfo.etaMinutes,
+              orderNumber: selectedOrder.orderNumber,
+              customerName: selectedOrder.delivery.fullName,
+              address: selectedOrder.delivery.houseStreet + ', ' + selectedOrder.delivery.barangay
+            });
+          });
+
+          // Also open the customer marker popup
+          if (customerMarkersRef.current[selectedOrderId]) {
+            customerMarkersRef.current[selectedOrderId].openPopup();
+          }
+        }, [selectedOrderId, orders.length]);
 
         // Subscribe to live rider updates for all active orders
         React.useEffect(function () {
@@ -670,6 +764,57 @@
           }
         };
 
+        var handleSelectOrder = function (orderId) {
+          setSelectedOrderId(function (prev) {
+            return prev === orderId ? null : orderId;
+          });
+        };
+
+        // Navigation info bar (shows when an order is selected)
+        var navInfoBar = null;
+        if (selectedOrderId && selectedRouteInfo) {
+          var gmapsUrl = '';
+          var selOrder = orders.filter(function (o) { return o.id === selectedOrderId; })[0];
+          var selCoords = selOrder ? getOrderCoords(selOrder) : null;
+          if (selCoords && hasStoreGps(store)) {
+            gmapsUrl = 'https://www.google.com/maps/dir/?api=1&origin=' + store.lat + ',' + store.lng + '&destination=' + selCoords.lat + ',' + selCoords.lng + '&travelmode=driving';
+          }
+          navInfoBar = h('div', { className: 'nav-info-bar' },
+            h('div', { className: 'nav-info-route' },
+              h('div', { className: 'nav-info-icon' }, '🧭'),
+              h('div', { className: 'nav-info-details' },
+                h('div', { className: 'nav-info-title' }, 'Navigation to ' + selectedRouteInfo.customerName),
+                h('div', { className: 'nav-info-subtitle' }, selectedRouteInfo.address)
+              ),
+              h('div', { className: 'nav-info-stats' },
+                h('div', { className: 'nav-stat' },
+                  h('span', { className: 'nav-stat-value' }, selectedRouteInfo.distanceKm < 1 ? Math.round(selectedRouteInfo.distanceKm * 1000) + 'm' : selectedRouteInfo.distanceKm.toFixed(1) + ' km'),
+                  h('span', { className: 'nav-stat-label' }, 'Distance')
+                ),
+                h('div', { className: 'nav-stat' },
+                  h('span', { className: 'nav-stat-value' }, '~' + selectedRouteInfo.etaMinutes + ' min'),
+                  h('span', { className: 'nav-stat-label' }, 'ETA')
+                )
+              )
+            ),
+            h('div', { className: 'nav-info-actions' },
+              gmapsUrl ? h('a', {
+                href: gmapsUrl,
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                className: 'btn btn-primary btn-sm',
+                style: { fontSize: '12px', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }
+              }, '🗺️ Open in Google Maps') : null,
+              h('button', {
+                className: 'btn btn-outline btn-sm',
+                type: 'button',
+                style: { fontSize: '12px', padding: '6px 14px' },
+                onClick: function () { setSelectedOrderId(null); }
+              }, '✕ Clear Route')
+            )
+          );
+        }
+
         return h('div', { className: 'admin-radar-card' },
           h('div', { className: 'admin-radar-head' },
             h('div', null,
@@ -678,7 +823,7 @@
                 'Live Multi-Buyer Dispatch Radar'
               ),
               h('p', { style: { fontSize: '12.5px', color: 'var(--ink-500)', marginTop: '2px' } },
-                'OpenStreetMap + OSRM turn-by-turn road navigation & Firebase Realtime Database'
+                'Tap an order below to show its road navigation route'
               )
             ),
             h('div', { className: 'radar-badges' },
@@ -697,6 +842,7 @@
               )
             )
           ),
+          navInfoBar,
           h('div', {
             ref: mapElRef,
             className: 'map-box admin-radar-map-view',
@@ -708,41 +854,81 @@
               h('span', null, '📍 Active Customer Drop-off'),
               h('span', null, '🛵 Courier in Transit (Live GPS)')
             ),
-            h('span', { style: { fontSize: '11px', color: 'var(--ink-400)' } }, 'Live device GPS when shared')
+            h('span', { style: { fontSize: '11px', color: 'var(--ink-400)' } }, 'Tap an order to show route')
           ),
-          orders.length > 0 ? h('div', { style: { marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border)' } },
-            h('div', { style: { fontSize: '12.5px', fontWeight: '800', marginBottom: '8px', color: 'var(--ink-700)' } },
-              '🛵 Share rider device GPS for an out-for-delivery order'
+          orders.length > 0 ? h('div', { className: 'delivery-order-selector' },
+            h('div', { style: { fontSize: '12.5px', fontWeight: '800', marginBottom: '8px', color: 'var(--ink-700)', display: 'flex', alignItems: 'center', gap: '8px' } },
+              '🧭 Select an order to navigate',
+              selectedOrderId ? h('span', { style: { fontSize: '11px', color: 'var(--green-600)', fontWeight: '600' } }, '● Route active') : null
             ),
             h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
               orders.map(function (o) {
+                var isSelected = (selectedOrderId === o.id);
                 var isStreaming = (activeStreamingOrderId === o.id);
                 var pos = riderPositions[o.id];
+                var c = getOrderCoords(o);
+                var distKm = c && hasStoreGps(store) ? calcDistanceKm(store.lat, store.lng, c.lat, c.lng) : null;
+                var distStr = distKm !== null ? (distKm < 1 ? Math.round(distKm * 1000) + 'm' : distKm.toFixed(1) + ' km') : 'No GPS';
+
                 return h('div', {
                   key: o.id,
+                  className: 'delivery-nav-ticket' + (isSelected ? ' selected' : ''),
+                  onClick: function () { handleSelectOrder(o.id); },
                   style: {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    background: 'var(--surface-2)',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    fontSize: '12px'
+                    background: isSelected ? 'var(--green-50, rgba(45,165,110,0.1))' : 'var(--surface-2)',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    border: isSelected ? '2px solid var(--green-500)' : '2px solid transparent',
+                    transition: 'all 0.2s ease'
                   }
                 },
-                  h('div', null,
-                    h('span', { style: { fontWeight: '700' } }, o.orderNumber + ' - ' + o.delivery.fullName),
-                    pos ? h('span', { style: { marginLeft: '8px', color: 'var(--green-600)', fontWeight: '600' } },
-                      '● ' + (pos.speed ? pos.speed + ' km/h' : 'Transmitting')
-                    ) : null
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flex: '1' } },
+                    h('div', {
+                      style: {
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: isSelected ? 'var(--green-600)' : 'var(--surface-3, rgba(255,255,255,0.1))',
+                        color: isSelected ? '#fff' : 'var(--ink-600)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        transition: 'all 0.2s ease',
+                        flexShrink: '0'
+                      }
+                    }, isSelected ? '🧭' : '📍'),
+                    h('div', { style: { flex: '1', minWidth: '0' } },
+                      h('div', { style: { fontWeight: '700', fontSize: '13px', color: isSelected ? 'var(--green-700, #1A6B49)' : 'var(--ink-800)' } },
+                        o.orderNumber + ' · ' + o.delivery.fullName
+                      ),
+                      h('div', { style: { fontSize: '11px', color: 'var(--ink-500)', marginTop: '2px' } },
+                        o.delivery.houseStreet + ', ' + o.delivery.barangay,
+                        ' · ',
+                        h('strong', null, distStr)
+                      )
+                    )
                   ),
-                  h('div', { style: { display: 'flex', gap: '6px' } },
-                    h('button', {
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexShrink: '0' } },
+                    h('span', {
+                      className: 'status-badge ' + statusClass(o.status),
+                      style: { fontSize: '10px' }
+                    }, esc(o.status)),
+                    pos ? h('span', { style: { color: 'var(--green-600)', fontWeight: '600', fontSize: '11px' } },
+                      '● ' + (pos.speed ? pos.speed + ' km/h' : 'Live')
+                    ) : null,
+                    o.status === 'Out for Delivery' ? h('button', {
                       className: 'btn ' + (isStreaming ? 'btn-danger' : 'btn-outline') + ' btn-sm',
-                      style: { fontSize: '11px', padding: '3px 8px' },
+                      style: { fontSize: '10px', padding: '3px 8px' },
                       type: 'button',
-                      onClick: function () { handleTogglePhoneGps(o.id); }
-                    }, isStreaming ? '⏹️ Stop Phone GPS' : '📱 Stream Phone GPS')
+                      onClick: function (e) { e.stopPropagation(); handleTogglePhoneGps(o.id); }
+                    }, isStreaming ? '⏹️ Stop GPS' : '📱 Stream GPS') : null
                   )
                 );
               })
