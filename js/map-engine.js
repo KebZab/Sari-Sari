@@ -53,11 +53,11 @@
 
       function createCustomerIcon(name, orderNumber, isCurrent) {
         var initials = (name || 'Buyer').split(' ').map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
-        var display = esc(name || 'Customer');
-        if (orderNumber) display += ' (' + esc(orderNumber.slice(-4)) + ')';
+        var display = esc((name || 'Customer').trim().split(/\s+/)[0]);
+        if (orderNumber) display += ' #' + esc(orderNumber.slice(-4));
         return L.divIcon({
           className: 'leaflet-customer-marker' + (isCurrent ? ' current-buyer' : ''),
-          html: '<div class="cust-pin-inner"><div class="cust-pulse"></div><div class="cust-badge">' + initials + '</div><div class="cust-name">' + display + '</div></div>',
+          html: '<div class="cust-pin-inner"><div class="cust-pulse"></div><div class="cust-badge">' + esc(initials) + '</div><div class="cust-name" title="' + esc(name || 'Customer') + '">' + display + '</div></div>',
           iconSize: [130, 58],
           iconAnchor: [65, 58],
           popupAnchor: [0, -58]
@@ -388,7 +388,7 @@
           custMarker.bindPopup('<b>Customer Drop-off</b><br>' + esc(order.delivery.houseStreet) + ', ' + esc(order.delivery.barangay));
 
           if (hasStoreGps(store)) map.fitBounds([[store.lat, store.lng], [custCoords.lat, custCoords.lng]], {
-            padding: [45, 45], maxZoom: 16
+            padding: [80, 80], maxZoom: 16
           });
           else map.setView([custCoords.lat, custCoords.lng], 15);
 
@@ -424,7 +424,7 @@
           routeLineRef.current = polyline;
 
           if (routeInfo.latLngs.length > 1) {
-            map.fitBounds(polyline.getBounds(), { padding: [50, 50], maxZoom: 16 });
+            map.fitBounds(polyline.getBounds(), { padding: [80, 80], maxZoom: 16 });
           }
         }, [routeInfo, order.status]);
 
@@ -482,12 +482,12 @@
               mapInstanceRef.current.fitBounds([
                 riderMarkerRef.current.getLatLng(),
                 [custCoords.lat, custCoords.lng]
-              ], { padding: [50, 50] });
+              ], { padding: [80, 80] });
             } else if (hasStoreGps(store)) {
               mapInstanceRef.current.fitBounds([
                 [store.lat, store.lng],
                 [custCoords.lat, custCoords.lng]
-              ], { padding: [50, 50] });
+              ], { padding: [80, 80] });
             } else {
               mapInstanceRef.current.setView([custCoords.lat, custCoords.lng], 15);
             }
@@ -626,7 +626,7 @@
           });
 
           if (allPoints.length > 1) {
-            map.fitBounds(allPoints, { padding: [50, 50], maxZoom: 16 });
+            map.fitBounds(allPoints, { padding: [80, 80], maxZoom: 16 });
           } else if (allPoints.length === 1) {
             map.setView(allPoints[0], 15);
           } else {
@@ -671,7 +671,7 @@
               var c = getOrderCoords(o);
               if (c) allPts.push([c.lat, c.lng]);
             });
-            if (allPts.length > 1) map.fitBounds(allPts, { padding: [50, 50], maxZoom: 16 });
+            if (allPts.length > 1) map.fitBounds(allPts, { padding: [80, 80], maxZoom: 16 });
             return function () { routeActive = false; };
           }
 
@@ -716,7 +716,7 @@
 
             // Zoom to fit the route
             if (rInfo.latLngs.length > 1) {
-              mapInstanceRef.current.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 16 });
+              mapInstanceRef.current.fitBounds(routeLine.getBounds(), { padding: [80, 80], maxZoom: 16 });
             }
 
             // Update route info for the info bar
@@ -1205,7 +1205,7 @@
             map.fitBounds([
               [store.lat, store.lng],
               [coords.lat, coords.lng]
-            ], { padding: [35, 35], maxZoom: 16 });
+            ], { padding: [80, 80], maxZoom: 16 });
           } else {
             map.setView([store.lat, store.lng], 15);
           }

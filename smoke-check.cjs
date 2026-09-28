@@ -193,6 +193,9 @@ for (const icon of [context.createStoreIcon(), context.createCustomerIcon('Juan'
   assert.equal(icon.iconAnchor[0], icon.iconSize[0] / 2);
   assert.equal(icon.iconAnchor[1], icon.iconSize[1]);
 }
+const longNameIcon = context.createCustomerIcon('Kevin Managuit', 'ORD-0001', true);
+assert.match(longNameIcon.html, /Kevin #0001/);
+assert.doesNotMatch(longNameIcon.html, />Kevin Managuit \(/);
 const mapCss = fs.readFileSync('css/maps-modals.css', 'utf8');
 assert.doesNotMatch(mapCss, /translate\(-50%,\s*-(?:50|100)%\)/);
 
