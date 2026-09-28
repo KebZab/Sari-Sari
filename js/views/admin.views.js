@@ -171,7 +171,7 @@
           var st = stockStatus(p);
           return '' +
             '<div class="prod-row">' +
-            '<div class="thumb">' + (p.image ? '<img src="' + p.image + '">' : '<span>' + (p.emoji || ICON.box) + '</span>') + '</div>' +
+            '<div class="thumb">' + (p.image ? ('<img src="' + p.image + '" onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'inline\';"><span style="display:none;">' + (p.emoji || ICON.box) + '</span>') : ('<span>' + (p.emoji || ICON.box) + '</span>')) + '</div>' +
             '<div class="body"><div class="nm">' + esc(p.name) + '</div><div class="sub">' + esc(cat ? cat.name : '') + ' &middot; ' + peso(p.price) + ' &middot; <span>' + p.stock + ' in stock</span></div></div>' +
             '<div class="acts">' +
             '<button class="icon-sq" title="Edit" onclick="App.openProductModal(\'' + p.id + '\')">' + ICON.edit + '</button>' +
@@ -189,7 +189,7 @@
           var cat = categoryById(p.categoryId);
           return '' +
             '<div class="prod-row">' +
-            '<div class="thumb">' + (p.image ? '<img src="' + p.image + '">' : '<span>' + (p.emoji || ICON.box) + '</span>') + '</div>' +
+            '<div class="thumb">' + (p.image ? ('<img src="' + p.image + '" onerror="this.style.display=\'none\';if(this.nextElementSibling)this.nextElementSibling.style.display=\'inline\';"><span style="display:none;">' + (p.emoji || ICON.box) + '</span>') : ('<span>' + (p.emoji || ICON.box) + '</span>')) + '</div>' +
             '<div class="body"><div class="nm">' + esc(p.name) + ' <span class="p-badge ' + st.cls + '" style="position:static;display:inline-block;margin-left:6px;">' + st.label + '</span></div><div class="sub">' + esc(cat ? cat.name : '') + ' &middot; Stock: ' + p.stock + '</div></div>' +
             '<div class="acts">' +
             '<button class="icon-sq" onclick="App.adjustStock(\'' + p.id + '\',-1)">' + ICON.minus + '</button>' +

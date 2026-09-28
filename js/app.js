@@ -130,10 +130,14 @@ var App = window.App = window.App || {};
         var phone = document.getElementById('login-phone').value.trim();
         var password = document.getElementById('login-password').value;
         var user = getUsers().filter(function (u) { return u.phone === phone; })[0];
-        if (!user || user.password !== password) {
+        if (!user || !verifyPassword(password, user.password)) {
           state.loginError = 'Incorrect phone number or password.';
           render();
           return false;
+        }
+        if (typeof hashPassword === 'function' && (!user.password || !user.password.startsWith('hash_'))) {
+          user.password = hashPassword(password);
+          saveUsers(getUsers());
         }
         state.loginError = '';
         setSession(user.id);
@@ -170,7 +174,8 @@ var App = window.App = window.App || {};
         var users = getUsers();
         var newUser = {
           id: uid('user'), role: 'customer', fullName: vals.fullName, phone: vals.phone,
-          password: vals.password, barangay: vals.barangay, houseStreet: vals.houseStreet,
+          password: typeof hashPassword === 'function' ? hashPassword(vals.password) : vals.password,
+          barangay: vals.barangay, houseStreet: vals.houseStreet,
           landmark: vals.landmark, createdAt: new Date().toISOString()
         };
         users.push(newUser);

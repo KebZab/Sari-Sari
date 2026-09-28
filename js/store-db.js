@@ -202,21 +202,21 @@ function getStoreLocation() {
 
         var adminUser = {
           id: uid('user'), role: 'admin', fullName: 'NelGlenn (Owner)', phone: '09171234567',
-          password: 'admin123', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
+          password: hashPassword('admin123'), barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
         };
         var demoCustomer = {
           id: uid('user'), role: 'customer', fullName: 'Juan Dela Cruz', phone: '09201112222',
-          password: 'juan123', barangay: 'Barangay San Isidro', houseStreet: '123 Mabini St.',
+          password: hashPassword('juan123'), barangay: 'Barangay San Isidro', houseStreet: '123 Mabini St.',
           landmark: 'Near the covered court', lat: 14.60152, lng: 120.98731, createdAt: new Date().toISOString()
         };
         var demoCustomer2 = {
           id: uid('user'), role: 'customer', fullName: 'Maria Santos', phone: '09183334444',
-          password: 'maria123', barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
+          password: hashPassword('maria123'), barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
           landmark: 'Near 7-Eleven store', lat: 14.59715, lng: 120.98188, createdAt: new Date().toISOString()
         };
         var adminUser2 = {
           id: uid('user'), role: 'admin', fullName: 'Zabal (Admin)', phone: 'zabal@sarisari.com',
-          password: '123456', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
+          password: hashPassword('123456'), barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
         };
         dbSet(K.USERS, [adminUser, adminUser2, demoCustomer, demoCustomer2]);
         dbSet(K.ORDERS, []);
@@ -225,12 +225,34 @@ function getStoreLocation() {
         dbSet(K.SEEDED, true);
       }
 
+      function hashPassword(pwd) {
+        if (!pwd) return '';
+        if (typeof pwd === 'string' && (pwd.indexOf('hash_') === 0 || pwd.indexOf('sha256_') === 0)) return pwd;
+        var str = 'salt_sarisari_v1_' + pwd;
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return 'hash_' + (h >>> 0).toString(16);
+      }
+
+      function verifyPassword(inputPassword, storedPassword) {
+        if (!storedPassword) return false;
+        if (storedPassword === inputPassword) return true;
+        return hashPassword(inputPassword) === storedPassword;
+      }
+
       function migrateLegacyStoreData() {
         var users = getUsers();
         var usersChanged = false;
         users.forEach(function (u) {
           if (u.fullName && u.fullName.indexOf('Aling Nena') !== -1) {
             u.fullName = u.fullName.replace(/Aling Nena/g, 'NelGlenn');
+            usersChanged = true;
+          }
+          if (u.password && typeof u.password === 'string' && !u.password.startsWith('hash_')) {
+            u.password = hashPassword(u.password);
             usersChanged = true;
           }
         });
@@ -266,7 +288,7 @@ function getStoreLocation() {
         if (!users.some(function (u) { return u.phone === '09183334444'; })) {
           users.push({
             id: uid('user'), role: 'customer', fullName: 'Maria Santos', phone: '09183334444',
-            password: 'maria123', barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
+            password: hashPassword('maria123'), barangay: 'Barangay San Isidro', houseStreet: '45 Taft Ave.',
             landmark: 'Near 7-Eleven store', lat: 14.59715, lng: 120.98188, createdAt: new Date().toISOString()
           });
           updated = true;
@@ -274,7 +296,7 @@ function getStoreLocation() {
         if (!users.some(function (u) { return u.phone === 'zabal@sarisari.com'; })) {
           users.push({
             id: uid('user'), role: 'admin', fullName: 'Zabal (Admin)', phone: 'zabal@sarisari.com',
-            password: '123456', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
+            password: hashPassword('123456'), barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
           });
           updated = true;
         }
@@ -309,18 +331,32 @@ function getStoreLocation() {
       function getNotifs() { return dbGet(K.NOTIFS, []); }
       function saveNotifs(n) { dbSet(K.NOTIFS, n); syncToCloud('notifs', n); }
 
-      function syncToCloud(coll, items) {
-        if (!firestoreDb) return;
+      var _cloudSyncDebounceTimers = {};
+
+      function syncDocToCloud(coll, item) {
+        if (!firestoreDb || !item || !item.id) return;
         try {
-          var batch = firestoreDb.batch();
-          items.forEach(function (item) {
-            if (item && item.id) {
-              var docRef = firestoreDb.collection(coll).doc(item.id);
-              batch.set(docRef, JSON.parse(JSON.stringify(item)));
-            }
+          firestoreDb.collection(coll).doc(item.id).set(JSON.parse(JSON.stringify(item)), { merge: true }).catch(function (e) {
+            console.warn("[Firebase] syncDoc error (" + coll + "/" + item.id + "):", e);
           });
-          batch.commit().catch(function (e) { console.warn("[Firebase] sync error (" + coll + "): ", e); });
-        } catch (e) { console.warn("[Firebase] sync exception:", e); }
+        } catch (e) { }
+      }
+
+      function syncToCloud(coll, items) {
+        if (!firestoreDb || !items) return;
+        if (_cloudSyncDebounceTimers[coll]) clearTimeout(_cloudSyncDebounceTimers[coll]);
+        _cloudSyncDebounceTimers[coll] = setTimeout(function () {
+          try {
+            var batch = firestoreDb.batch();
+            items.forEach(function (item) {
+              if (item && item.id) {
+                var docRef = firestoreDb.collection(coll).doc(item.id);
+                batch.set(docRef, JSON.parse(JSON.stringify(item)), { merge: true });
+              }
+            });
+            batch.commit().catch(function (e) { console.warn("[Firebase] sync error (" + coll + "): ", e); });
+          } catch (e) { console.warn("[Firebase] sync exception:", e); }
+        }, 200);
       }
 
       function initCloudRealtimeListeners() {
@@ -330,7 +366,9 @@ function getStoreLocation() {
           if (snap && !snap.empty) {
             var cloudProds = [];
             snap.forEach(function (doc) { cloudProds.push(doc.data()); });
-            if (cloudProds.length > 0) {
+            var localRaw = JSON.stringify(getProducts());
+            var cloudRaw = JSON.stringify(cloudProds);
+            if (cloudRaw !== localRaw) {
               dbSet(K.PRODUCTS, cloudProds);
               render();
             }
@@ -344,8 +382,12 @@ function getStoreLocation() {
           if (snap && !snap.empty) {
             var cloudOrders = [];
             snap.forEach(function (doc) { cloudOrders.push(doc.data()); });
-            dbSet(K.ORDERS, cloudOrders);
-            render();
+            var localRaw = JSON.stringify(getOrders());
+            var cloudRaw = JSON.stringify(cloudOrders);
+            if (cloudRaw !== localRaw) {
+              dbSet(K.ORDERS, cloudOrders);
+              render();
+            }
           } else {
             var localOrders = getOrders();
             if (localOrders.length > 0) syncToCloud('orders', localOrders);
@@ -356,8 +398,12 @@ function getStoreLocation() {
           if (snap && !snap.empty) {
             var cloudCats = [];
             snap.forEach(function (doc) { cloudCats.push(doc.data()); });
-            dbSet(K.CATEGORIES, cloudCats);
-            render();
+            var localRaw = JSON.stringify(getCategories());
+            var cloudRaw = JSON.stringify(cloudCats);
+            if (cloudRaw !== localRaw) {
+              dbSet(K.CATEGORIES, cloudCats);
+              render();
+            }
           } else {
             var localCats = getCategories();
             if (localCats.length > 0) syncToCloud('categories', localCats);
@@ -368,7 +414,11 @@ function getStoreLocation() {
           if (snap && !snap.empty) {
             var cloudUsers = [];
             snap.forEach(function (doc) { cloudUsers.push(doc.data()); });
-            dbSet(K.USERS, cloudUsers);
+            var localRaw = JSON.stringify(getUsers());
+            var cloudRaw = JSON.stringify(cloudUsers);
+            if (cloudRaw !== localRaw) {
+              dbSet(K.USERS, cloudUsers);
+            }
           } else {
             var localUsers = getUsers();
             if (localUsers.length > 0) syncToCloud('users', localUsers);
@@ -379,8 +429,12 @@ function getStoreLocation() {
           if (snap && !snap.empty) {
             var cloudNotifs = [];
             snap.forEach(function (doc) { cloudNotifs.push(doc.data()); });
-            dbSet(K.NOTIFS, cloudNotifs);
-            render();
+            var localRaw = JSON.stringify(getNotifs());
+            var cloudRaw = JSON.stringify(cloudNotifs);
+            if (cloudRaw !== localRaw) {
+              dbSet(K.NOTIFS, cloudNotifs);
+              render();
+            }
           } else {
             var localNotifs = getNotifs();
             if (localNotifs.length > 0) syncToCloud('notifs', localNotifs);
@@ -391,8 +445,11 @@ function getStoreLocation() {
           if (doc.exists) {
             var d = doc.data();
             if (d && typeof d.lat === 'number' && typeof d.lng === 'number') {
-              updateStoreLocationObject(d);
-              dbSet('sst_store_location', d);
+              var curLoc = JSON.stringify(STORE_LOCATION);
+              if (JSON.stringify(d) !== curLoc) {
+                updateStoreLocationObject(d);
+                dbSet('sst_store_location', d);
+              }
             }
           }
         }, function (err) { });
