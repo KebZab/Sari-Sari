@@ -223,6 +223,7 @@ var App = window.App = window.App || {};
 /* ---- Real-Time Customer GPS Actions ---- */
       App.detectCustomerGps = function (showToast) {
         if (showToast === undefined) showToast = true;
+        if (showToast) toast('📡 Detecting your GPS location...');
         var btnText = document.getElementById('gps-btn-text');
         if (btnText) btnText.textContent = 'Locating...';
         state.checkoutGpsStatus = 'locating';

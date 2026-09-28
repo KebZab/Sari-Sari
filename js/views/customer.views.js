@@ -303,18 +303,18 @@
         var gpsBlock = '' +
           '<div class="section-title" style="margin-top:14px;">' + ICON.pin + ' Pinpoint location (Real-time GPS)</div>' +
           '<div class="card" style="padding:14px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;position:relative;z-index:20;">' +
           '<div>' +
           '<div style="font-weight:700;font-size:13.5px;">Exact Drop-off Pin</div>' +
           '<div style="font-size:11.5px;color:var(--ink-500);">Tap "Detect My GPS" or drag the pin to your gate</div>' +
           '</div>' +
-          '<button type="button" class="gps-btn" id="btn-detect-gps" onclick="App.detectCustomerGps()">' +
+          '<button type="button" class="gps-btn" id="btn-detect-gps" onclick="App.detectCustomerGps(true)">' +
           '<span class="gps-radar-dot"></span>' +
           '<span id="gps-btn-text">' + (state.checkoutGpsStatus === 'locked' ? 'GPS Locked ✓' : 'Detect My GPS') + '</span>' +
           '</button>' +
           '</div>' +
           '<div id="checkout-map" class="map-box checkout-map-view"></div>' +
-          '<div class="gps-status-row" id="checkout-gps-status">' +
+          '<div class="gps-status-row" id="checkout-gps-status" style="cursor:pointer;" onclick="App.detectCustomerGps(true)">' +
           (state.checkoutCoords ?
             (state.checkoutCoords.manual ?
               '<span class="gps-badge-pill manual">📍 Pin Set on Map</span><span>' + state.checkoutCoords.lat.toFixed(5) + ', ' + state.checkoutCoords.lng.toFixed(5) + '</span>' :
