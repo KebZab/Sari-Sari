@@ -11,33 +11,74 @@
         else body = renderCustomerHome(user);
 
         var showTop = (view === 'customer-home');
-        var html = '<div class="mobile-frame">';
+        var cc = cartCount();
+        var html = '<div class="mobile-frame' + (cc > 0 && view === 'customer-home' ? ' has-floating-cart' : '') + '">';
         if (showTop) html += renderCustomerTopbar(user);
         html += '<div class="screen">' + body + '</div>';
+        if (view === 'customer-home' && cc > 0 && !state.cartOpen) {
+          html += renderFloatingCartBar();
+        }
         html += renderCustomerBottomNav(view, user);
-        if (state.cartOpen) html += renderCartDrawer();
+        if (state.cartOpen) html += renderCartDrawer(user);
         if (state.notifOpen) html += renderNotifDrawer(user);
         html += '</div>';
         return html;
       }
 
+      function renderFloatingCartBar() {
+        var cc = cartCount();
+        if (cc <= 0) return '';
+        var total = cartTotal();
+        return '' +
+          '<div class="floating-cart-bar" id="floating-cart-bar" onclick="App.toggleCart(true)" role="button" aria-label="View shopping cart">' +
+            '<div class="fc-left">' +
+              '<div class="fc-icon-pill">' + ICON.cart + '<span class="fc-badge">' + cc + '</span></div>' +
+              '<div class="fc-meta">' +
+                '<span class="fc-label">' + cc + (cc === 1 ? ' item' : ' items') + ' in cart</span>' +
+                '<span class="fc-price">' + peso(total) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="fc-action">' +
+              '<span>View Cart</span>' +
+              '<span class="fc-arr">&rarr;</span>' +
+            '</div>' +
+          '</div>';
+      }
+
       function renderCustomerTopbar(user) {
         var uc = unreadCount(user.id);
+        var addrText = user.barangay ? user.barangay : (state.checkoutCoords ? 'GPS Location Pinned' : 'Set delivery location');
+        if (user.landmark && user.barangay) addrText += ' (' + user.landmark + ')';
         return '' +
           '<div class="topbar">' +
-          '<div class="topbar-row">' +
-          '<div class="brand"><div class="mark">' + ICON.store + '</div><div class="brand-text"><div class="name" style="display:flex;align-items:center;gap:6px;">Aling Nena\'s Store <span class="cloud-badge" style="font-size:10px;padding:2px 7px;"><span class="cloud-dot"></span> Live</span></div><div class="tag">Fresh &amp; ready for pickup or delivery</div></div></div>' +
-          '<div class="topbar-actions">' +
-          '<button class="icon-btn" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') + '</button>' +
-          '</div>' +
-          '</div>' +
-          '<div class="search-wrap"><span class="si">' + ICON.search + '</span><input type="text" placeholder="Search products (e.g. sardinas, gatas, tubig)" value="' + esc(state.search) + '" oninput="App.setSearch(this.value)"></div>' +
-          '<div class="cat-scroll">' +
-          '<button class="chip' + (state.activeCategoryId === null ? ' active' : '') + '" onclick="App.setCategory(null)">All items</button>' +
-          getCategories().map(function (c) {
-            return '<button class="chip' + (state.activeCategoryId === c.id ? ' active' : '') + '" onclick="App.setCategory(\'' + c.id + '\')">' + c.emoji + ' ' + esc(c.name) + '</button>';
-          }).join('') +
-          '</div>' +
+            '<div class="topbar-row">' +
+              '<div class="brand">' +
+                '<div class="mark">' + ICON.store + '</div>' +
+                '<div class="brand-text">' +
+                  '<div class="name" style="display:flex;align-items:center;gap:6px;">Aling Nena\'s Store <span class="cloud-badge" style="font-size:10px;padding:2px 7px;"><span class="cloud-dot"></span> Live</span></div>' +
+                  '<div class="tag">Fresh &amp; ready for pickup or delivery</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="topbar-actions">' +
+                '<button class="icon-btn" onclick="App.toggleNotif(true)" aria-label="Notifications">' + ICON.bell + (uc > 0 ? '<span class="dot">' + uc + '</span>' : '') + '</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="delivery-bar" onclick="App.openLocationModal()">' +
+              '<span class="del-ic">📍</span>' +
+              '<span class="del-text">Deliver to: <strong>' + esc(addrText) + '</strong></span>' +
+              '<span class="del-pill">Change &rsaquo;</span>' +
+            '</div>' +
+            '<div class="search-wrap">' +
+              '<span class="si">' + ICON.search + '</span>' +
+              '<input id="prod-search-input" type="text" placeholder="Search products (e.g. sardinas, gatas, tubig)" value="' + esc(state.search) + '" oninput="App.setSearch(this.value)">' +
+              (state.search ? '<button class="search-clear-btn" type="button" aria-label="Clear search" onclick="App.clearSearch()">&times;</button>' : '') +
+            '</div>' +
+            '<div class="cat-scroll" id="cat-scroll-bar">' +
+              '<button class="chip' + (state.activeCategoryId === null ? ' active' : '') + '" onclick="App.setCategory(null)"><span class="chip-emoji">✨</span> All items</button>' +
+              getCategories().map(function (c) {
+                return '<button class="chip' + (state.activeCategoryId === c.id ? ' active' : '') + '" onclick="App.setCategory(\'' + c.id + '\')"><span class="chip-emoji">' + c.emoji + '</span> ' + esc(c.name) + '</button>';
+              }).join('') +
+            '</div>' +
           '</div>';
       }
 
@@ -73,40 +114,57 @@
         return '<span>' + (p ? p.emoji || ICON.box : ICON.box) + '</span>';
       }
 
+      function renderProductCardFooter(p, inCart) {
+        var disabled = (p.stock <= 0 || p.status === 'unavailable');
+        var maxed = inCart >= p.stock;
+        if (disabled) {
+          return '<button class="add-btn is-disabled" disabled>Out of Stock</button>';
+        } else if (inCart > 0) {
+          return '<div class="qty-stepper">' +
+            '<button class="qty-btn dec" type="button" aria-label="Decrease quantity" onclick="event.stopPropagation();App.cartDec(\'' + p.id + '\')">' + ICON.minus + '</button>' +
+            '<span class="qty-num">' + inCart + '</span>' +
+            '<button class="qty-btn inc" type="button" aria-label="Increase quantity" ' + (maxed ? 'disabled style="opacity:0.35;" ' : '') + 'onclick="event.stopPropagation();App.cartInc(\'' + p.id + '\')">' + ICON.plus + '</button>' +
+          '</div>';
+        } else {
+          return '<button class="add-btn" type="button" onclick="event.stopPropagation();App.addToCart(\'' + p.id + '\')">' +
+            '<span class="btn-ic">' + ICON.plus + '</span> Add' +
+          '</button>';
+        }
+      }
+
       function renderCustomerHome(user) {
         var products = filteredProducts();
         var cart = getCart();
         var cartMap = {}; cart.forEach(function (c) { cartMap[c.productId] = c.qty; });
         var grid;
         if (products.length === 0) {
-          grid = '<div class="empty-state"><div class="ic">\ud83d\udd0d</div><h3>No products found</h3><p>Try a different search term or category.</p></div>';
+          grid = '<div class="empty-state"><div class="ic">\ud83d\udd0d</div><h3>No products found</h3><p>Try a different search term or category.</p>' +
+            (state.search ? '<button class="btn btn-outline btn-sm" style="margin-top:12px;" onclick="App.clearSearch()">Clear search</button>' : '') +
+            '</div>';
         } else {
-          grid = '<div class="product-grid">' + products.map(function (p) {
+          grid = '<div class="product-grid" id="customer-product-grid">' + products.map(function (p) {
             var st = stockStatus(p);
             var cat = categoryById(p.categoryId);
             var inCart = cartMap[p.productId || p.id] || cartMap[p.id] || 0;
             var disabled = (p.stock <= 0 || p.status === 'unavailable');
-            var footer;
-            if (disabled) {
-              footer = '<button class="add-btn" disabled>' + st.label + '</button>';
-            } else if (inCart > 0) {
-              footer = '<div class="qty-stepper"><button onclick="App.cartDec(\'' + p.id + '\')">' + ICON.minus + '</button><span>' + inCart + '</span><button onclick="App.cartInc(\'' + p.id + '\')">' + ICON.plus + '</button></div>';
-            } else {
-              footer = '<button class="add-btn" onclick="App.addToCart(\'' + p.id + '\')">Add to cart</button>';
-            }
+            var footer = renderProductCardFooter(p, inCart);
             return '' +
-              '<div class="p-card">' +
-              '<div class="p-img">' +
-              '<span class="p-badge ' + st.cls + '">' + st.label + '</span>' +
-              productImgHtml(p) +
-              '</div>' +
-              '<div class="p-body">' +
-              '<div class="p-cat">' + esc(cat ? cat.name : '') + '</div>' +
-              '<div class="p-name">' + esc(p.name) + '</div>' +
-              '<div class="p-price">' + peso(p.price) + '</div>' +
-              '<div class="p-stockline">' + (p.stock > 0 ? p.stock + ' pcs available' : 'Currently unavailable') + '</div>' +
-              '<div class="p-foot">' + footer + '</div>' +
-              '</div>' +
+              '<div class="p-card' + (inCart > 0 ? ' in-cart' : '') + (disabled ? ' is-unavailable' : '') + '" id="pcard-' + p.id + '" data-product-id="' + p.id + '">' +
+                '<div class="p-img">' +
+                  '<span class="p-badge ' + st.cls + '">' + st.label + '</span>' +
+                  (inCart > 0 ? '<span class="p-incart-badge" id="pbadge-incart-' + p.id + '">' + inCart + ' in cart</span>' : '<span class="p-incart-badge" id="pbadge-incart-' + p.id + '" style="display:none;"></span>') +
+                  productImgHtml(p) +
+                '</div>' +
+                '<div class="p-body">' +
+                  '<div class="p-cat">' + esc(cat ? cat.name : '') + '</div>' +
+                  '<div class="p-name">' + esc(p.name) + '</div>' +
+                  '<div class="p-price-row">' +
+                    '<span class="p-price">' + peso(p.price) + '</span>' +
+                    (p.stock > 0 && p.stock <= 5 ? '<span class="p-low-stock">Few left</span>' : '') +
+                  '</div>' +
+                  '<div class="p-stockline">' + (p.stock > 0 ? p.stock + ' pcs available' : 'Currently unavailable') + '</div>' +
+                  '<div class="p-foot" id="pfoot-' + p.id + '">' + footer + '</div>' +
+                '</div>' +
               '</div>';
           }).join('') + '</div>';
         }
@@ -129,42 +187,45 @@
       }
 
       /* ---------- Cart Drawer ---------- */
-      function renderCartDrawer() {
+      function renderCartDrawer(user) {
         var cart = getCart();
         var body;
         if (cart.length === 0) {
-          body = '<div class="empty-state"><div class="ic">' + ICON.cart + '</div><h3>Your cart is empty</h3><p>Browse products and add items to order.</p></div>';
+          body = '<div class="empty-state"><div class="ic">' + ICON.cart + '</div><h3>Your cart is empty</h3><p>Browse products and add items to order.</p><button class="btn btn-primary" style="margin-top:14px;" onclick="App.toggleCart(false)">Browse Products</button></div>';
         } else {
           body = cart.map(function (c) {
             var p = productById(c.productId);
             if (!p) return '';
             var maxed = c.qty >= p.stock;
+            var lineTotal = p.price * c.qty;
             return '' +
-              '<div class="cart-item">' +
+              '<div class="cart-item" id="cart-item-' + p.id + '">' +
               '<div class="thumb">' + productImgHtml(p) + '</div>' +
               '<div class="info">' +
               '<div class="nm">' + esc(p.name) + '</div>' +
-              '<div class="pr">' + peso(p.price) + ' each</div>' +
+              '<div class="pr-wrap"><span class="pr">' + peso(p.price) + ' each</span> <span class="line-total">' + peso(lineTotal) + '</span></div>' +
               '<div class="rowend">' +
-              '<div class="qty-stepper" style="max-width:116px;"><button onclick="App.cartDec(\'' + p.id + '\')">' + ICON.minus + '</button><span>' + c.qty + '</span><button ' + (maxed ? 'disabled style="opacity:.35;"' : '') + ' onclick="App.cartInc(\'' + p.id + '\')">' + ICON.plus + '</button></div>' +
-              '<button class="link-danger" onclick="App.cartRemove(\'' + p.id + '\')">Remove</button>' +
+              '<div class="qty-stepper" style="max-width:116px;"><button type="button" aria-label="Decrease" onclick="App.cartDec(\'' + p.id + '\')">' + ICON.minus + '</button><span class="qty-num">' + c.qty + '</span><button type="button" aria-label="Increase" ' + (maxed ? 'disabled style="opacity:.35;"' : '') + ' onclick="App.cartInc(\'' + p.id + '\')">' + ICON.plus + '</button></div>' +
+              '<button class="link-danger" type="button" onclick="App.cartRemove(\'' + p.id + '\')">Remove</button>' +
               '</div>' +
               '</div>' +
               '</div>';
           }).join('');
         }
         var total = cartTotal();
+        var count = cartCount();
         return '' +
           '<div class="overlay-bg bottom-sheet" onclick="if(event.target===this) App.toggleCart(false)">' +
           '<div class="drawer-bottom">' +
           '<div class="sheet-handle"></div>' +
-          '<div class="drawer-head"><h3>' + ICON.cart + ' Your cart</h3><button class="close-x" onclick="App.toggleCart(false)">' + ICON.close + '</button></div>' +
+          '<div class="drawer-head"><h3>' + ICON.cart + ' Your Cart <span class="head-count">(' + count + ')</span></h3><button class="close-x" onclick="App.toggleCart(false)">&times;</button></div>' +
           '<div class="drawer-body">' + body + '</div>' +
           (cart.length > 0 ? (
             '<div class="cart-summary">' +
-            '<div class="summary-row"><span>Subtotal</span><span>' + peso(total) + '</span></div>' +
-            '<div class="summary-row total"><span>Total</span><span>' + peso(total) + '</span></div>' +
-            '<button class="btn btn-primary btn-block" onclick="App.goCheckout()">Proceed to checkout</button>' +
+            '<div class="summary-row"><span>Items Subtotal</span><span class="val">' + peso(total) + '</span></div>' +
+            '<div class="summary-row"><span style="display:flex;align-items:center;gap:4px;">Delivery Fee <span class="badge-free">Free</span></span><span class="val">₱0.00</span></div>' +
+            '<div class="summary-row total"><span>Total to Pay</span><span class="val">' + peso(total) + '</span></div>' +
+            '<button class="btn btn-primary btn-block btn-lg" onclick="App.goCheckout()">Proceed to Checkout (' + peso(total) + ') &rarr;</button>' +
             '</div>'
           ) : '') +
           '</div>' +
@@ -185,14 +246,13 @@
               '</div>';
           }).join('');
         }
-        // Use bottom-sheet for customer, side drawer for admin
         var isCustomer = currentUser() && currentUser().role === 'customer';
         if (isCustomer) {
           return '' +
             '<div class="overlay-bg bottom-sheet" onclick="if(event.target===this) App.toggleNotif(false)">' +
             '<div class="drawer-bottom">' +
             '<div class="sheet-handle"></div>' +
-            '<div class="drawer-head"><h3>' + ICON.bell + ' Notifications</h3><button class="close-x" onclick="App.toggleNotif(false)">' + ICON.close + '</button></div>' +
+            '<div class="drawer-head"><h3>' + ICON.bell + ' Notifications</h3><button class="close-x" onclick="App.toggleNotif(false)">&times;</button></div>' +
             '<div class="drawer-body">' + body + '</div>' +
             '</div>' +
             '</div>';
@@ -200,7 +260,7 @@
         return '' +
           '<div class="overlay-bg" onclick="if(event.target===this) App.toggleNotif(false)">' +
           '<div class="drawer">' +
-          '<div class="drawer-head"><h3>' + ICON.bell + ' Notifications</h3><button class="close-x" onclick="App.toggleNotif(false)">' + ICON.close + '</button></div>' +
+          '<div class="drawer-head"><h3>' + ICON.bell + ' Notifications</h3><button class="close-x" onclick="App.toggleNotif(false)">&times;</button></div>' +
           '<div class="drawer-body">' + body + '</div>' +
           '</div>' +
           '</div>';
@@ -272,9 +332,19 @@
           '<div class="section-title">' + ICON.package + ' Order items</div>' +
           '<div class="card">' + itemsHtml + '</div>' +
           '<div class="section-title">Delivery instructions (optional)</div>' +
-          '<div class="card"><textarea id="chk-instructions" placeholder="e.g. Please call upon arrival, leave with the guard, etc.">' + esc(state.checkoutInstructions) + '</textarea></div>' +
+          '<div class="card">' +
+          '<div class="quick-tags" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;">' +
+          '<button type="button" class="chip" style="font-size:11px;padding:4px 9px;" onclick="App.addInstructionTag(\'Call when outside\')">+ Call when outside</button>' +
+          '<button type="button" class="chip" style="font-size:11px;padding:4px 9px;" onclick="App.addInstructionTag(\'Leave at doorstep\')">+ Leave at doorstep</button>' +
+          '<button type="button" class="chip" style="font-size:11px;padding:4px 9px;" onclick="App.addInstructionTag(\'Ring doorbell\')">+ Ring doorbell</button>' +
+          '</div>' +
+          '<textarea id="chk-instructions" placeholder="e.g. Please call upon arrival, leave with the guard, etc.">' + esc(state.checkoutInstructions) + '</textarea>' +
+          '</div>' +
           '<div class="section-title">' + ICON.money + ' Payment method</div>' +
-          '<div class="card"><div class="info-row"><span class="k">Payment</span><span class="v">Cash on Delivery (COD)</span></div></div>' +
+          '<div class="card" style="padding:10px 14px;">' +
+          '<div class="info-row" style="padding:6px 0;"><span class="k" style="display:flex;align-items:center;gap:6px;">💵 Cash on Delivery (COD)</span><span class="v" style="color:var(--green-700);">Active</span></div>' +
+          '<div style="font-size:11.5px;color:var(--ink-500);margin-top:2px;">Pay directly in cash to the rider upon delivery. GCash transfer upon arrival also supported.</div>' +
+          '</div>' +
           '<div class="card" style="background:linear-gradient(135deg, var(--green-50), var(--surface));">' +
           '<div class="summary-row total"><span>Total to pay</span><span>' + peso(total) + '</span></div>' +
           '<button class="btn btn-primary btn-block" onclick="App.placeOrder()">' + ICON.check + ' Place order</button>' +
@@ -370,4 +440,3 @@
           '</div>' +
           '<button class="btn btn-outline btn-block" style="margin-top:4px;" onclick="App.logout()">' + ICON.logout + ' Log out</button>';
       }
-

@@ -3,7 +3,8 @@
       var activeMaps = {
         checkout: null,
         customerTracking: null,
-        adminDeliveries: null
+        adminDeliveries: null,
+        adminOrderModal: null
       };
       var trackingTimers = {};
 
@@ -909,6 +910,74 @@
         }
       }
 
+      function initAdminOrderModalMap() {
+        destroyMap('adminOrderModal');
+        var mapEl = document.getElementById('admin-order-modal-map');
+        if (!mapEl || typeof L === 'undefined') return;
+
+        var order = getOrders().filter(function (x) { return x.id === state.orderDetailId; })[0];
+        if (!order) return;
+
+        var coords = getOrderCoords(order);
+        var store = (typeof getStoreLocation === 'function') ? getStoreLocation() : STORE_LOCATION;
+
+        var initialLat = (coords && Number.isFinite(coords.lat)) ? (coords.lat + store.lat) / 2 : store.lat;
+        var initialLng = (coords && Number.isFinite(coords.lng)) ? (coords.lng + store.lng) / 2 : store.lng;
+
+        try {
+          var map = L.map('admin-order-modal-map', {
+            zoomControl: true,
+            attributionControl: false
+          }).setView([initialLat, initialLng], 14);
+
+          activeMaps.adminOrderModal = map;
+          createOsmTileLayer().addTo(map);
+
+          // Add Store Marker
+          var storeMarker = L.marker([store.lat, store.lng], { icon: createStoreIcon() }).addTo(map);
+          storeMarker.bindPopup('<b>🏪 Aling Nena\'s Store</b><br>Fulfillment Base');
+
+          if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
+            // Add Customer Drop-off Marker
+            var custMarker = L.marker([coords.lat, coords.lng], {
+              icon: createCustomerIcon(order.delivery.fullName, order.orderNumber, true)
+            }).addTo(map);
+            custMarker.bindPopup('<b>📍 ' + esc(order.delivery.fullName) + '</b><br>' + esc(order.delivery.houseStreet + ', ' + order.delivery.barangay) + '<br><b>Order:</b> ' + esc(order.orderNumber)).openPopup();
+
+            // Fetch and draw road route via OSRM
+            fetchOSRMRoute(store.lat, store.lng, coords.lat, coords.lng, function (route) {
+              if (route && route.latLngs && activeMaps.adminOrderModal === map) {
+                L.polyline(route.latLngs, {
+                  color: '#1A6B49',
+                  weight: 5,
+                  opacity: 0.85,
+                  lineJoin: 'round'
+                }).addTo(map);
+
+                var distBadge = document.getElementById('modal-map-dist-pill');
+                if (distBadge) {
+                  distBadge.innerHTML = '🚗 ' + route.distanceKm.toFixed(1) + ' km road &middot; ~' + route.etaMinutes + ' mins drive';
+                }
+              }
+            });
+
+            // Fit bounds to show both store and customer
+            map.fitBounds([
+              [store.lat, store.lng],
+              [coords.lat, coords.lng]
+            ], { padding: [35, 35], maxZoom: 16 });
+          } else {
+            map.setView([store.lat, store.lng], 15);
+          }
+
+          setTimeout(function () {
+            if (map && activeMaps.adminOrderModal === map) map.invalidateSize();
+          }, 150);
+        } catch (err) {
+          console.error("Failed to init adminOrderModal map:", err);
+        }
+      }
+
       function scheduleMapInitialization() {
         setTimeout(function () {
           var user = currentUser();
@@ -917,6 +986,8 @@
           } else if (state.view === 'customer-order-detail') {
             var o = getOrders().filter(function (x) { return x.id === state.orderDetailId; })[0];
             if (o) mountCustomerTrackingReact(o);
+          } else if (state.view === 'admin-order-modal') {
+            initAdminOrderModalMap();
           } else if (user && user.role === 'admin' && state.adminSection === 'deliveries') {
             if (!state.adminGpsAttempted) {
               state.adminGpsAttempted = true;

@@ -11,7 +11,7 @@ var App = window.App || {};
         state.view = view;
         state.cartOpen = false; state.notifOpen = false;
         if (view === 'customer-checkout') { state.addressEditing = false; }
-        render();
+        render(false);
       };
       App.viewOrder = function (id) {
         destroyMap('customerTracking');
@@ -19,27 +19,113 @@ var App = window.App || {};
         state.orderDetailId = id;
         state.view = user.role === 'admin' ? state.view : 'customer-order-detail';
         state.cartOpen = false; state.notifOpen = false;
-        render();
+        render(false);
       };
-      App.setSearch = function (v) { state.search = v; renderInPlace(); };
-      App.setCategory = function (id) { state.activeCategoryId = id; render(); };
-      App.toggleCart = function (open) { state.cartOpen = open; state.notifOpen = false; render(); };
+      App.setSearch = function (v) {
+        state.search = v;
+        var gridEl = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('customer-product-grid') : null;
+        if (gridEl && state.view === 'customer-home') {
+          var products = filteredProducts();
+          var cart = getCart();
+          var cartMap = {}; cart.forEach(function (c) { cartMap[c.productId] = c.qty; });
+          if (products.length === 0) {
+            gridEl.innerHTML = '<div class="empty-state"><div class="ic">\ud83d\udd0d</div><h3>No products found</h3><p>Try a different search term or category.</p>' +
+              (state.search ? '<button class="btn btn-outline btn-sm" style="margin-top:12px;" onclick="App.clearSearch()">Clear search</button>' : '') +
+              '</div>';
+          } else {
+            gridEl.innerHTML = products.map(function (p) {
+              var st = stockStatus(p);
+              var cat = categoryById(p.categoryId);
+              var inCart = cartMap[p.productId || p.id] || cartMap[p.id] || 0;
+              var disabled = (p.stock <= 0 || p.status === 'unavailable');
+              var footer = renderProductCardFooter(p, inCart);
+              return '' +
+                '<div class="p-card' + (inCart > 0 ? ' in-cart' : '') + (disabled ? ' is-unavailable' : '') + '" id="pcard-' + p.id + '" data-product-id="' + p.id + '">' +
+                  '<div class="p-img">' +
+                    '<span class="p-badge ' + st.cls + '">' + st.label + '</span>' +
+                    (inCart > 0 ? '<span class="p-incart-badge" id="pbadge-incart-' + p.id + '">' + inCart + ' in cart</span>' : '<span class="p-incart-badge" id="pbadge-incart-' + p.id + '" style="display:none;"></span>') +
+                    productImgHtml(p) +
+                  '</div>' +
+                  '<div class="p-body">' +
+                    '<div class="p-cat">' + esc(cat ? cat.name : '') + '</div>' +
+                    '<div class="p-name">' + esc(p.name) + '</div>' +
+                    '<div class="p-price-row">' +
+                      '<span class="p-price">' + peso(p.price) + '</span>' +
+                      (p.stock > 0 && p.stock <= 5 ? '<span class="p-low-stock">Few left</span>' : '') +
+                    '</div>' +
+                    '<div class="p-stockline">' + (p.stock > 0 ? p.stock + ' pcs available' : 'Currently unavailable') + '</div>' +
+                    '<div class="p-foot" id="pfoot-' + p.id + '">' + footer + '</div>' +
+                  '</div>' +
+                '</div>';
+            }).join('');
+          }
+          var titleEl = document.querySelector('.section-title');
+          if (titleEl) {
+            titleEl.innerHTML = (state.activeCategoryId ? esc(categoryById(state.activeCategoryId).name) : 'All products') + ' <span style="color:var(--ink-400);font-weight:600;font-size:14px;">(' + products.length + ')</span>';
+          }
+        } else {
+          render(true);
+        }
+      };
+      App.clearSearch = function () {
+        state.search = '';
+        var input = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('prod-search-input') : null;
+        if (input) input.value = '';
+        App.setSearch('');
+      };
+      App.setCategory = function (id) {
+        state.activeCategoryId = id;
+        render(true);
+      };
+      App.toggleCart = function (open) {
+        state.cartOpen = open;
+        state.notifOpen = false;
+        render(true);
+      };
       App.toggleNotif = function (open) {
-        state.notifOpen = open; state.cartOpen = false; render();
+        state.notifOpen = open;
+        state.cartOpen = false;
+        render(true);
       };
       App.readNotif = function (id) {
         var notifs = getNotifs();
         notifs.forEach(function (n) { if (n.id === id) n.read = true; });
         saveNotifs(notifs);
-        render();
+        render(true);
       };
-      App.toggleSidebar = function (open) { state.sidebarOpen = open; render(); };
+      App.toggleSidebar = function (open) {
+        state.sidebarOpen = open;
+        render(true);
+      };
       App.setAdminSection = function (sec) {
         destroyMap('adminDeliveries');
-        state.adminSection = sec; state.sidebarOpen = false; state.orderFilter = 'All'; render();
+        state.adminSection = sec;
+        state.sidebarOpen = false;
+        state.orderFilter = 'All';
+        render(false);
       };
-      App.closeModal = function () { state.view = currentUser().role === 'admin' ? 'admin-' + state.adminSection : state.view; state.editingProductId = null; state.productFormCategory = null; state.productFormImage = undefined; render(); };
-      App.setOrderFilter = function (f) { state.orderFilter = f; render(); };
+      App.closeModal = function () {
+        destroyMap('adminOrderModal');
+        state.view = currentUser().role === 'admin' ? 'admin-' + state.adminSection : state.view;
+        state.editingProductId = null;
+        state.productFormCategory = null;
+        state.productFormImage = undefined;
+        render(true);
+      };
+      App.setOrderFilter = function (f) {
+        state.orderFilter = f;
+        render(true);
+      };
+      App.addInstructionTag = function (tag) {
+        var el = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('chk-instructions') : null;
+        if (el) {
+          var cur = el.value.trim();
+          if (cur.indexOf(tag) === -1) {
+            el.value = cur ? (cur + ', ' + tag) : tag;
+            state.checkoutInstructions = el.value;
+          }
+        }
+      };
 
 /* ---- Auth ---- */
       App.handleLogin = function (e) {
@@ -56,7 +142,7 @@ var App = window.App || {};
         setSession(user.id);
         state.view = user.role === 'admin' ? 'admin-dashboard' : 'customer-home';
         state.adminSection = 'dashboard';
-        render();
+        render(false);
         toast('Welcome back, ' + user.fullName.split(' ')[0] + '!');
         return false;
       };
@@ -95,7 +181,7 @@ var App = window.App || {};
         state.registerError = {};
         setSession(newUser.id);
         state.view = 'customer-home';
-        render();
+        render(false);
         toast('Account created. Welcome, ' + newUser.fullName.split(' ')[0] + '!');
         return false;
       };
@@ -104,10 +190,11 @@ var App = window.App || {};
         destroyMap('checkout');
         destroyMap('customerTracking');
         destroyMap('adminDeliveries');
+        destroyMap('adminOrderModal');
         clearSession();
         state.view = 'auth-login';
         state.adminSection = 'dashboard';
-        render();
+        render(false);
       };
 
       /* ---- Profile ---- */
@@ -125,35 +212,145 @@ var App = window.App || {};
         if (newPw) u.password = newPw;
         saveUsers(users);
         toast('Profile updated.');
-        render();
+        render(true);
         return false;
       };
 
-      /* ---- Cart ---- */
+      /* ---- In-place Cart UI Sync (No reload, No scroll reset) ---- */
+      App.syncCartUI = function (productId) {
+        var cart = getCart();
+        var cc = cartCount();
+        var ct = cartTotal();
+
+        // 1. Update bottom nav cart badge
+        if (typeof document !== 'undefined' && document.querySelectorAll) {
+          var navBtns = document.querySelectorAll('.bottom-nav button');
+          for (var i = 0; i < navBtns.length; i++) {
+            if (navBtns[i].textContent.indexOf('Cart') !== -1 || navBtns[i].innerHTML.indexOf(ICON.cart) !== -1) {
+              var badge = navBtns[i].querySelector('.nav-badge');
+              if (cc > 0) {
+                if (badge) {
+                  badge.textContent = cc;
+                } else {
+                  var sp = document.createElement('span');
+                  sp.className = 'nav-badge';
+                  sp.textContent = cc;
+                  navBtns[i].appendChild(sp);
+                }
+              } else if (badge) {
+                badge.remove();
+              }
+            }
+          }
+        }
+
+        // 2. If on customer-home, update or toggle floating cart bar
+        if (state.view === 'customer-home' && typeof document !== 'undefined' && document.querySelector) {
+          var floatBar = document.getElementById('floating-cart-bar');
+          var mobileFrame = document.querySelector('.mobile-frame');
+
+          if (cc > 0 && !state.cartOpen) {
+            if (floatBar) {
+              var fcBadge = floatBar.querySelector('.fc-badge');
+              var fcLabel = floatBar.querySelector('.fc-label');
+              var fcPrice = floatBar.querySelector('.fc-price');
+              if (fcBadge) fcBadge.textContent = cc;
+              if (fcLabel) fcLabel.textContent = cc + (cc === 1 ? ' item' : ' items') + ' in cart';
+              if (fcPrice) fcPrice.textContent = peso(ct);
+            } else if (mobileFrame) {
+              var bottomNav = document.querySelector('.bottom-nav');
+              var div = document.createElement('div');
+              div.innerHTML = renderFloatingCartBar();
+              if (div.firstElementChild) {
+                if (bottomNav) {
+                  mobileFrame.insertBefore(div.firstElementChild, bottomNav);
+                } else {
+                  mobileFrame.appendChild(div.firstElementChild);
+                }
+              }
+            }
+            if (mobileFrame) mobileFrame.classList.add('has-floating-cart');
+          } else {
+            if (floatBar) floatBar.remove();
+            if (mobileFrame) mobileFrame.classList.remove('has-floating-cart');
+          }
+        }
+
+        // 3. Update the specific product card if in DOM
+        if (productId && typeof document !== 'undefined' && document.getElementById) {
+          var card = document.getElementById('pcard-' + productId);
+          if (card) {
+            var p = productById(productId);
+            if (p) {
+              var inCartItem = cart.filter(function (x) { return x.productId === productId; })[0];
+              var inCart = inCartItem ? inCartItem.qty : 0;
+              var foot = document.getElementById('pfoot-' + productId);
+              if (foot) {
+                foot.innerHTML = renderProductCardFooter(p, inCart);
+              }
+              var inCartBadge = document.getElementById('pbadge-incart-' + productId);
+              if (inCartBadge) {
+                if (inCart > 0) {
+                  inCartBadge.textContent = inCart + ' in cart';
+                  inCartBadge.style.display = '';
+                  card.classList.add('in-cart');
+                } else {
+                  inCartBadge.textContent = '';
+                  inCartBadge.style.display = 'none';
+                  card.classList.remove('in-cart');
+                }
+              }
+              card.classList.add('p-bump');
+              setTimeout(function () { card.classList.remove('p-bump'); }, 300);
+              return;
+            }
+          }
+        }
+
+        // 4. Fallback if product card is not in DOM (e.g., inside cart drawer)
+        render(true);
+      };
+
+      /* ---- Cart Operations ---- */
       App.addToCart = function (productId) {
         var p = productById(productId);
-        if (!p || p.stock <= 0 || p.status === 'unavailable') { toast('This product is not available.'); return; }
+        if (!p || p.stock <= 0 || p.status === 'unavailable') {
+          toast('This product is not available.');
+          return;
+        }
         var cart = getCart();
         var existing = cart.filter(function (c) { return c.productId === productId; })[0];
         if (existing) {
-          if (existing.qty < p.stock) existing.qty++;
+          if (existing.qty < p.stock) {
+            existing.qty++;
+          } else {
+            toast('Only ' + p.stock + ' pcs available.');
+            return;
+          }
         } else {
           cart.push({ productId: productId, qty: 1 });
         }
         saveCart(cart);
         toast(p.name + ' added to cart.');
-        render();
+        App.syncCartUI(productId);
       };
+
       App.cartInc = function (productId) {
         var p = productById(productId);
         var cart = getCart();
         var item = cart.filter(function (c) { return c.productId === productId; })[0];
-        if (!item) { cart.push({ productId: productId, qty: 1 }); }
-        else if (item.qty < p.stock) { item.qty++; }
-        else { toast('Only ' + p.stock + ' pcs available.'); }
+        if (!item) {
+          cart.push({ productId: productId, qty: 1 });
+        } else if (item.qty < p.stock) {
+          item.qty++;
+        } else {
+          toast('Only ' + p.stock + ' pcs available.');
+          return;
+        }
         saveCart(cart);
-        render();
+        App.syncCartUI(productId);
       };
+
       App.cartDec = function (productId) {
         var cart = getCart();
         var item = cart.filter(function (c) { return c.productId === productId; })[0];
@@ -161,13 +358,15 @@ var App = window.App || {};
         item.qty--;
         if (item.qty <= 0) cart = cart.filter(function (c) { return c.productId !== productId; });
         saveCart(cart);
-        render();
+        App.syncCartUI(productId);
       };
+
       App.cartRemove = function (productId) {
         var cart = getCart().filter(function (c) { return c.productId !== productId; });
         saveCart(cart);
-        render();
+        App.syncCartUI(productId);
       };
+
       App.goCheckout = function () {
         var cart = getCart();
         if (cart.length === 0) { toast('Your cart is empty.'); return; }
@@ -183,7 +382,7 @@ var App = window.App || {};
               return { productId: c.productId, qty: Math.min(c.qty, pr.stock) };
             });
             saveCart(fixed);
-            render();
+            render(true);
             return;
           }
         }
@@ -192,7 +391,7 @@ var App = window.App || {};
         state.checkoutInstructions = '';
         App.go('customer-checkout');
       };
-      App.editCheckoutAddress = function () { state.addressEditing = true; render(); };
+      App.editCheckoutAddress = function () { state.addressEditing = true; render(true); };
       App.saveCheckoutAddress = function () {
         var user = currentUser();
         var users = getUsers();
@@ -204,7 +403,7 @@ var App = window.App || {};
         saveUsers(users);
         state.addressEditing = false;
         toast('Address updated.');
-        render();
+        render(true);
       };
 
       /* ---- Place order ---- */
@@ -214,7 +413,7 @@ var App = window.App || {};
         if (cart.length === 0) { toast('Your cart is empty.'); return; }
         if (!user.barangay || !user.houseStreet || !user.phone) {
           toast('Please complete your delivery address before checking out.');
-          state.addressEditing = true; render(); return;
+          state.addressEditing = true; render(true); return;
         }
         if (!state.checkoutCoords || !Number.isFinite(state.checkoutCoords.lat) || !Number.isFinite(state.checkoutCoords.lng)) {
           toast('Set your real drop-off location using GPS or by tapping the map before placing the order.');
@@ -230,7 +429,7 @@ var App = window.App || {};
           var p = products.filter(function (x) { return x.id === cart[i].productId; })[0];
           if (!p || p.status === 'unavailable' || p.stock <= 0 || cart[i].qty > p.stock) {
             toast('One or more items are no longer available in the requested quantity. Please review your cart.');
-            render();
+            render(true);
             return;
           }
           items.push({ productId: p.id, name: p.name, price: p.price, qty: cart[i].qty });
@@ -294,7 +493,7 @@ var App = window.App || {};
         saveOrders(orders);
         addNotif(o.customerId, 'Your order ' + o.orderNumber + ' was cancelled.', 'cancel', o.id);
         toast('Order cancelled.');
-        render();
+        render(true);
       };
 
       function restockOrder(order) {
@@ -308,9 +507,24 @@ var App = window.App || {};
 
       /* ---- Admin order actions ---- */
       App.openOrderModal = function (orderId) {
+        destroyMap('adminOrderModal');
         state.orderDetailId = orderId;
         state.view = 'admin-order-modal';
-        render();
+        render(true);
+      };
+      App.togglePhoneGpsStreaming = function (orderId) {
+        if (typeof activeStreamingOrderId !== 'undefined' && activeStreamingOrderId === orderId) {
+          stopRiderDeviceGps();
+          activeStreamingOrderId = null;
+          toast('Stopped courier GPS streaming.');
+        } else {
+          var started = startRiderDeviceGps(orderId);
+          if (started) {
+            activeStreamingOrderId = orderId;
+            toast('Streaming phone GPS to customer in real-time!');
+          }
+        }
+        render(true);
       };
       App.confirmOrder = function (orderId) {
         var orders = getOrders();
@@ -365,7 +579,7 @@ var App = window.App || {};
         };
         if (msgs[newStatus]) addNotif(o.customerId, msgs[newStatus], 'status', o.id);
         toast('Order marked as ' + newStatus + '.');
-        if (state.view === 'admin-order-modal') App.closeModal(); else render();
+        if (state.view === 'admin-order-modal') App.closeModal(); else render(true);
       };
 
       /* ---- Admin: products ---- */
@@ -374,7 +588,7 @@ var App = window.App || {};
         state.productFormCategory = null;
         state.productFormImage = undefined;
         state.view = 'admin-product-modal';
-        render();
+        render(true);
       };
       App.handleProductImage = function (e) {
         var file = e.target.files[0];
@@ -437,7 +651,7 @@ var App = window.App || {};
         var products = getProducts().filter(function (p) { return p.id !== productId; });
         saveProducts(products);
         toast('Product removed.');
-        render();
+        render(true);
       };
       App.adjustStock = function (productId, delta) {
         var products = getProducts();
@@ -445,15 +659,49 @@ var App = window.App || {};
         if (!p) return;
         p.stock = Math.max(0, p.stock + delta);
         saveProducts(products);
-        render();
+        render(true);
       };
 
 window.App = App;
 
-/* ================= RENDER ROOT ================= */
-/* ================= RENDER ROOT ================= */
-      function render() {
+/* ================= RENDER ROOT WITH SCROLL PRESERVATION ================= */
+      var _lastView = null;
+      var _lastAdminSection = null;
+
+      function render(preserveScroll) {
         var app = document.getElementById('app');
+        if (!app) return;
+
+        var currentView = state.view;
+        var currentAdminSec = state.adminSection;
+
+        var shouldPreserve = (typeof preserveScroll === 'boolean')
+          ? preserveScroll
+          : (_lastView !== null && _lastView === currentView && _lastAdminSection === currentAdminSec);
+
+        var scrollY = 0;
+        var scrollX = 0;
+        var catScrollLeft = 0;
+        var drawerScrollTop = 0;
+
+        if (shouldPreserve && typeof window !== 'undefined') {
+          scrollY = window.pageYOffset || (document.documentElement ? document.documentElement.scrollTop : 0) || (document.body ? document.body.scrollTop : 0) || 0;
+          scrollX = window.pageXOffset || (document.documentElement ? document.documentElement.scrollLeft : 0) || (document.body ? document.body.scrollLeft : 0) || 0;
+          if (typeof document !== 'undefined' && document.querySelector) {
+            var catEl = document.querySelector('.cat-scroll');
+            if (catEl) catScrollLeft = catEl.scrollLeft;
+            var drEl = document.querySelector('.drawer-body');
+            if (drEl) drawerScrollTop = drEl.scrollTop;
+          }
+        }
+
+        _lastView = currentView;
+        _lastAdminSection = currentAdminSec;
+
+        var rootEl = (typeof document !== 'undefined') ? document.documentElement : null;
+        var origBehavior = (rootEl && rootEl.style) ? rootEl.style.scrollBehavior : '';
+        if (rootEl && rootEl.style) rootEl.style.scrollBehavior = 'auto';
+
         var user = currentUser();
         if (!user) {
           if (state.view !== 'auth-login' && state.view !== 'auth-register') state.view = 'auth-login';
@@ -463,16 +711,43 @@ window.App = App;
         } else {
           app.innerHTML = renderCustomerShell(user);
         }
-        window.scrollTo(0, 0);
+
+        if (shouldPreserve && typeof window !== 'undefined' && (scrollY > 0 || scrollX > 0 || catScrollLeft > 0 || drawerScrollTop > 0)) {
+          if (typeof window.scrollTo === 'function') {
+            window.scrollTo(scrollX, scrollY);
+          }
+          if (catScrollLeft > 0 && typeof document !== 'undefined' && document.querySelector) {
+            var newCat = document.querySelector('.cat-scroll');
+            if (newCat) newCat.scrollLeft = catScrollLeft;
+          }
+          if (drawerScrollTop > 0 && typeof document !== 'undefined' && document.querySelector) {
+            var newDr = document.querySelector('.drawer-body');
+            if (newDr) newDr.scrollTop = drawerScrollTop;
+          }
+          if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(function () {
+              if (typeof window.scrollTo === 'function') {
+                window.scrollTo(scrollX, scrollY);
+              }
+              if (rootEl && rootEl.style) rootEl.style.scrollBehavior = origBehavior;
+            });
+          } else if (rootEl && rootEl.style) {
+            rootEl.style.scrollBehavior = origBehavior;
+          }
+        } else {
+          if (!shouldPreserve && typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+            window.scrollTo(0, 0);
+          }
+          if (rootEl && rootEl.style) rootEl.style.scrollBehavior = origBehavior;
+        }
+
         scheduleMapInitialization();
       }
 
 /* ================= INIT BOOTLOADER ================= */
-/* ================= INIT ================= */
       seedIfNeeded();
       ensureDemoCustomersExist();
       updateProductImagesIfNeeded();
       if (getSession() && !currentUser()) clearSession();
-      render();
+      render(false);
       initCloudRealtimeListeners();
-

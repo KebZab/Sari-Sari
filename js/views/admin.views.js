@@ -122,29 +122,46 @@
           return mapHeader + '<div class="empty-state"><div class="ic">' + ICON.truck + '</div><h3>No active deliveries</h3><p>Orders being prepared or out for delivery appear here.</p></div>';
         }
 
+        var store = (typeof getStoreLocation === 'function') ? getStoreLocation() : STORE_LOCATION;
+
         var listHtml = orders.map(function (o) {
           var c = getOrderCoords(o);
-          var dist = c && hasStoreGps(STORE_LOCATION) ? calcDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, c.lat, c.lng) : null;
-          var distStr = dist !== null ? (dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(2) + ' km') : (c ? 'Store GPS not set' : 'No drop-off pin');
+          var dist = c && hasStoreGps(store) ? calcDistanceKm(store.lat, store.lng, c.lat, c.lng) : null;
+          var distStr = dist !== null ? (dist < 1 ? Math.round(dist * 1000) + 'm' : dist.toFixed(1) + ' km') : (c ? 'Pinned' : 'No GPS');
+          var initials = (o.delivery.fullName || 'Customer').split(' ').map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
+          var isStreaming = (typeof activeStreamingOrderId !== 'undefined' && activeStreamingOrderId === o.id);
+
           return '' +
-            '<div class="trow">' +
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">' +
-            '<div><div style="font-weight:800;font-size:14.5px;">' + esc(o.orderNumber) + '</div><div style="font-size:12px;color:var(--ink-500);margin-top:2px;">' + fmtDateTime(o.createdAt) + ' &middot; <b>' + distStr + ' from store</b></div></div>' +
-            '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
-            '</div>' +
-            '<div class="info-row"><span class="k">' + ICON.pin + ' Deliver to</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
-            '<div class="info-row"><span class="k">GPS Location</span><span class="v" style="font-family:monospace;font-size:11.5px;">' + (c ? c.lat.toFixed(5) + ', ' + c.lng.toFixed(5) : 'No location saved') + '</span></div>' +
-            '<div class="info-row"><span class="k">Landmark</span><span class="v">' + esc(o.delivery.landmark || '\u2014') + '</span></div>' +
-            '<div class="info-row"><span class="k">' + ICON.phone + ' Contact</span><span class="v">' + esc(o.delivery.phone) + '</span></div>' +
-            '<div style="margin-top:12px;display:flex;gap:8px;">' +
-            (o.status === 'Preparing' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Mark out for delivery</button>' : '') +
-            (o.status === 'Out for Delivery' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark delivered</button>' : '') +
-            '<button class="btn btn-outline btn-sm" onclick="App.openOrderModal(\'' + o.id + '\')">View details</button>' +
-            '</div>' +
+            '<div class="admin-delivery-ticket">' +
+              '<div class="ticket-header">' +
+                '<div style="display:flex;align-items:center;gap:10px;">' +
+                  '<div class="admin-avatar" style="width:36px;height:36px;font-size:13px;">' + initials + '</div>' +
+                  '<div>' +
+                    '<div style="font-weight:800;font-size:15px;color:var(--ink-900);">' + esc(o.orderNumber) + ' &middot; ' + esc(o.delivery.fullName) + '</div>' +
+                    '<div style="font-size:12px;color:var(--ink-500);">' + fmtDateTime(o.createdAt) + ' &middot; ' + o.items.length + ' item(s) &middot; <strong>' + peso(o.total) + '</strong></div>' +
+                  '</div>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                  '<span class="badge-dist">📍 ' + distStr + '</span>' +
+                  '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="ticket-body">' +
+                '<div class="info-row" style="padding:4px 0;"><span class="k">' + ICON.pin + ' Drop-off Address</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
+                (o.delivery.landmark ? ('<div class="info-row" style="padding:4px 0;"><span class="k">🏛️ Landmark</span><span class="v">' + esc(o.delivery.landmark) + '</span></div>') : '') +
+                (o.instructions ? ('<div class="info-row" style="padding:4px 0;"><span class="k">📝 Rider Note</span><span class="v" style="color:var(--gold-600);">' + esc(o.instructions) + '</span></div>') : '') +
+              '</div>' +
+              '<div class="ticket-actions">' +
+                (o.status === 'Preparing' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Dispatch for delivery</button>' : '') +
+                (o.status === 'Out for Delivery' ? '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark Delivered</button>' : '') +
+                (o.status === 'Out for Delivery' ? '<button type="button" class="btn ' + (isStreaming ? 'btn-danger' : 'btn-outline') + ' btn-sm" onclick="App.togglePhoneGpsStreaming(\'' + o.id + '\')">' + (isStreaming ? '⏹️ Stop Phone GPS' : '📱 Stream Phone GPS') + '</button>' : '') +
+                '<a href="tel:' + esc(o.delivery.phone) + '" class="btn btn-outline btn-sm">' + ICON.phone + ' Call</a>' +
+                '<button class="btn btn-outline btn-sm" onclick="App.openOrderModal(\'' + o.id + '\')">🗺️ View Map &amp; Details</button>' +
+              '</div>' +
             '</div>';
         }).join('');
 
-        return mapHeader + '<div class="table-list">' + listHtml + '</div>';
+        return mapHeader + '<div class="delivery-tickets-list">' + listHtml + '</div>';
       }
 
       function renderAdminProducts() {
@@ -213,47 +230,147 @@
         }).join('');
       }
 
-      /* ---------- Admin: Order detail modal ---------- */
+      /* ---------- Admin: Order detail & confirmation modal ---------- */
       function renderAdminOrderModal() {
         var o = getOrders().filter(function (x) { return x.id === state.orderDetailId; })[0];
         if (!o) return '';
-        var itemsHtml = o.items.map(function (it) {
-          return '<div class="info-row"><span class="k">' + esc(it.name) + ' &times; ' + it.qty + '</span><span class="v">' + peso(it.price * it.qty) + '</span></div>';
-        }).join('');
-        var actions = '';
-        if (o.status === 'Pending') {
-          actions = '<button class="btn btn-primary btn-sm" onclick="App.confirmOrder(\'' + o.id + '\')">' + ICON.check + ' Accept order</button><button class="btn btn-danger btn-sm" onclick="App.rejectOrder(\'' + o.id + '\')">' + ICON.close + ' Reject order</button>';
-        } else if (o.status === 'Confirmed') {
-          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Preparing\')">' + ICON.fire + ' Start preparing</button><button class="btn btn-danger btn-sm" onclick="App.rejectOrder(\'' + o.id + '\')">Cancel order</button>';
-        } else if (o.status === 'Preparing') {
-          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Mark out for delivery</button>';
-        } else if (o.status === 'Out for Delivery') {
-          actions = '<button class="btn btn-primary btn-sm" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark delivered</button>';
-        }
+
         var modalCoords = getOrderCoords(o);
-        var modalDist = modalCoords && hasStoreGps(STORE_LOCATION) ? calcDistanceKm(STORE_LOCATION.lat, STORE_LOCATION.lng, modalCoords.lat, modalCoords.lng) : null;
-        var modalDistStr = modalDist !== null ? (modalDist < 1 ? Math.round(modalDist * 1000) + 'm from store' : modalDist.toFixed(2) + ' km from store') : (modalCoords ? 'Store GPS not set' : 'No location saved');
+        var store = (typeof getStoreLocation === 'function') ? getStoreLocation() : STORE_LOCATION;
+        var modalDist = modalCoords && hasStoreGps(store) ? calcDistanceKm(store.lat, store.lng, modalCoords.lat, modalCoords.lng) : null;
+        var modalDistStr = modalDist !== null ? (modalDist < 1 ? Math.round(modalDist * 1000) + 'm' : modalDist.toFixed(1) + ' km') : (modalCoords ? 'Pinned' : 'No GPS');
+
+        var gmapsUrl = modalCoords
+          ? ('https://www.google.com/maps/dir/?api=1&origin=' + store.lat + ',' + store.lng + '&destination=' + modalCoords.lat + ',' + modalCoords.lng)
+          : ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((o.delivery.houseStreet || '') + ' ' + (o.delivery.barangay || '')));
+
+        var products = getProducts();
+        var allInStock = true;
+        var itemsHtml = o.items.map(function (it) {
+          var p = products.filter(function (x) { return x.id === it.productId; })[0];
+          var hasStock = p && p.stock >= it.qty;
+          if (!hasStock) allInStock = false;
+          var stockLabel = p ? (p.stock + ' in stock') : 'Item not found';
+          return '' +
+            '<div class="admin-modal-item-row">' +
+              '<div class="item-thumb">' + (p && p.image ? ('<img src="' + p.image + '" alt="' + esc(it.name) + '">') : ('<span>' + (p && p.emoji ? p.emoji : '📦') + '</span>')) + '</div>' +
+              '<div class="item-info">' +
+                '<div class="item-name">' + esc(it.name) + '</div>' +
+                '<div class="item-meta">' + peso(it.price) + ' &times; ' + it.qty + ' &middot; <span class="' + (hasStock ? 'stock-ok' : 'stock-low') + '">' + stockLabel + '</span></div>' +
+              '</div>' +
+              '<div class="item-total">' + peso(it.price * it.qty) + '</div>' +
+            '</div>';
+        }).join('');
+
+        var actions = '';
+        var isStreaming = (typeof activeStreamingOrderId !== 'undefined' && activeStreamingOrderId === o.id);
+
+        if (o.status === 'Pending') {
+          actions = '' +
+            '<div class="admin-action-block">' +
+              (!allInStock ? '<div class="alert-warn" style="margin-bottom:10px;">⚠️ Some items have lower inventory than requested. Check stock before accepting.</div>' : '<div class="alert-info" style="margin-bottom:10px;">✓ All items in stock. Inventory will be automatically deducted upon acceptance.</div>') +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+                '<button class="btn btn-primary btn-block btn-lg" style="flex:2;" onclick="App.confirmOrder(\'' + o.id + '\')">' + ICON.check + ' Accept & Confirm Order</button>' +
+                '<button class="btn btn-outline btn-lg" style="flex:1;color:var(--red-600);border-color:var(--red-200);" onclick="App.rejectOrder(\'' + o.id + '\')">' + ICON.close + ' Reject</button>' +
+              '</div>' +
+            '</div>';
+        } else if (o.status === 'Confirmed') {
+          actions = '' +
+            '<div class="admin-action-block">' +
+              '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+                '<button class="btn btn-primary btn-block btn-lg" style="flex:2;" onclick="App.advanceStatus(\'' + o.id + '\',\'Preparing\')">' + ICON.fire + ' Start Preparing Items</button>' +
+                '<button class="btn btn-ghost btn-sm" style="flex:1;color:var(--red-500);" onclick="App.rejectOrder(\'' + o.id + '\')">Cancel order</button>' +
+              '</div>' +
+            '</div>';
+        } else if (o.status === 'Preparing') {
+          actions = '' +
+            '<div class="admin-action-block">' +
+              '<button class="btn btn-primary btn-block btn-lg" onclick="App.advanceStatus(\'' + o.id + '\',\'Out for Delivery\')">' + ICON.truck + ' Dispatch / Mark Out for Delivery</button>' +
+            '</div>';
+        } else if (o.status === 'Out for Delivery') {
+          actions = '' +
+            '<div class="admin-action-block" style="display:flex;flex-direction:column;gap:8px;">' +
+              '<button class="btn btn-primary btn-block btn-lg" onclick="App.advanceStatus(\'' + o.id + '\',\'Delivered\')">' + ICON.check + ' Mark Delivered & Complete</button>' +
+              '<button type="button" class="btn ' + (isStreaming ? 'btn-danger' : 'btn-outline') + ' btn-block" onclick="App.togglePhoneGpsStreaming(\'' + o.id + '\')">' +
+                (isStreaming ? '⏹️ Stop Phone GPS Streaming' : '📱 Stream Rider Phone GPS to Customer') +
+              '</button>' +
+            '</div>';
+        } else if (o.status === 'Delivered') {
+          actions = '<div class="alert-success">✓ Order delivered and marked completed on ' + fmtDateTime(lastHistTime(o, 'Delivered')) + '</div>';
+        } else if (o.status === 'Cancelled') {
+          actions = '<div class="alert-danger">✕ This order was cancelled / rejected on ' + fmtDateTime(lastHistTime(o, 'Cancelled')) + '</div>';
+        }
+
+        var initials = (o.delivery.fullName || 'Customer').split(' ').map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
 
         return '' +
           '<div class="overlay-bg center" onclick="if(event.target===this) App.closeModal()">' +
-          '<div class="modal-card">' +
-          '<div class="modal-head"><div style="display:flex;justify-content:space-between;align-items:center;"><h3>' + esc(o.orderNumber) + '</h3><button class="close-x" onclick="App.closeModal()">' + ICON.close + '</button></div><span class="status-badge ' + statusClass(o.status) + '" style="margin-top:8px;display:inline-block;">' + esc(o.status) + '</span></div>' +
-          '<div class="modal-body">' +
-          '<div class="section-title" style="margin-top:0;">Customer &amp; GPS Location</div>' +
-          '<div class="info-row"><span class="k">Name</span><span class="v">' + esc(o.delivery.fullName) + '</span></div>' +
-          '<div class="info-row"><span class="k">Phone</span><span class="v">' + esc(o.delivery.phone) + '</span></div>' +
-          '<div class="info-row"><span class="k">Address</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
-          '<div class="info-row"><span class="k">GPS Pin</span><span class="v" style="font-family:monospace;font-size:11.5px;">' + (modalCoords ? modalCoords.lat.toFixed(5) + ', ' + modalCoords.lng.toFixed(5) + ' &middot; ' : '') + modalDistStr + '</span></div>' +
-          '<div class="info-row"><span class="k">Landmark</span><span class="v">' + esc(o.delivery.landmark || '\u2014') + '</span></div>' +
-          '<div class="info-row"><span class="k">Instructions</span><span class="v">' + esc(o.instructions || '\u2014') + '</span></div>' +
-          '<div class="info-row"><span class="k">Order placed</span><span class="v">' + fmtDateTime(o.createdAt) + '</span></div>' +
-          '<div class="divider"></div>' +
-          '<div class="section-title" style="margin-top:0;">Items</div>' +
-          itemsHtml +
-          '<div class="divider"></div>' +
-          '<div class="summary-row total"><span>Total</span><span>' + peso(o.total) + '</span></div>' +
-          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">' + actions + '</div>' +
-          '</div>' +
+          '<div class="modal-card admin-order-modal-card">' +
+            '<div class="modal-head">' +
+              '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                '<div>' +
+                  '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<h3 style="font-size:20px;font-weight:900;">' + esc(o.orderNumber) + '</h3>' +
+                    '<span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status) + '</span>' +
+                  '</div>' +
+                  '<div style="font-size:12px;color:var(--ink-500);margin-top:4px;">Placed ' + fmtDateTime(o.createdAt) + '</div>' +
+                '</div>' +
+                '<button class="close-x" onclick="App.closeModal()">&times;</button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="modal-body" style="padding-top:14px;">' +
+              '<div class="admin-detail-card">' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+                  '<div style="display:flex;align-items:center;gap:10px;">' +
+                    '<div class="admin-avatar">' + initials + '</div>' +
+                    '<div>' +
+                      '<div style="font-weight:800;font-size:15px;color:var(--ink-900);">' + esc(o.delivery.fullName) + '</div>' +
+                      '<div style="font-size:12.5px;color:var(--ink-600);">' + esc(o.delivery.phone) + '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<a href="tel:' + esc(o.delivery.phone) + '" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:6px 12px;">' +
+                    ICON.phone + ' Call' +
+                  '</a>' +
+                '</div>' +
+                '<div class="divider" style="margin:8px 0;"></div>' +
+                '<div class="info-row"><span class="k">📍 Drop-off Address</span><span class="v">' + esc(o.delivery.houseStreet + ', ' + o.delivery.barangay) + '</span></div>' +
+                (o.delivery.landmark ? ('<div class="info-row"><span class="k">🏛️ Nearby Landmark</span><span class="v">' + esc(o.delivery.landmark) + '</span></div>') : '') +
+                (o.instructions ? ('<div class="admin-instruction-callout"><span class="ic">📝</span> <span><strong>Rider Note:</strong> ' + esc(o.instructions) + '</span></div>') : '') +
+              '</div>' +
+
+              '<div class="admin-detail-card" style="margin-top:12px;padding:12px 14px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+                  '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;">' +
+                    '<span>🗺️ Delivery Route &amp; GPS Pin</span>' +
+                    '<span class="badge-dist" id="modal-map-dist-pill">📍 ' + modalDistStr + ' from store</span>' +
+                  '</div>' +
+                  '<a href="' + gmapsUrl + '" target="_blank" rel="noopener noreferrer" class="btn-gmaps-link">' +
+                    'Open in Google Maps ↗' +
+                  '</a>' +
+                '</div>' +
+                '<div id="admin-order-modal-map" class="map-box admin-order-modal-map-view"></div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:var(--ink-500);">' +
+                  '<span>🏪 Aling Nena\'s Store &rarr; 📍 ' + esc(o.delivery.barangay) + '</span>' +
+                  '<span>' + (modalCoords ? (modalCoords.lat.toFixed(5) + ', ' + modalCoords.lng.toFixed(5)) : 'No GPS set') + '</span>' +
+                '</div>' +
+              '</div>' +
+
+              '<div class="admin-detail-card" style="margin-top:12px;">' +
+                '<div style="font-size:14px;font-weight:800;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">' +
+                  '<span>📦 Items to Pack (' + o.items.length + ')</span>' +
+                  '<span style="font-size:12px;color:var(--ink-500);">' + (allInStock ? '✓ Stock ready' : '⚠️ Stock review') + '</span>' +
+                '</div>' +
+                '<div class="admin-modal-items-list">' + itemsHtml + '</div>' +
+                '<div class="divider" style="margin:10px 0;"></div>' +
+                '<div class="summary-row"><span>Items Subtotal</span><span class="val">' + peso(o.total) + '</span></div>' +
+                '<div class="summary-row"><span>Delivery Fee</span><span class="val" style="color:var(--green-700);">Free</span></div>' +
+                '<div class="summary-row total" style="margin:8px 0 0;padding-top:8px;"><span>Total to Collect</span><span class="val">' + peso(o.total) + '</span></div>' +
+                '<div style="font-size:11.5px;color:var(--ink-500);margin-top:4px;">Payment: 💵 Cash on Delivery (COD)</div>' +
+              '</div>' +
+
+              '<div style="margin-top:16px;">' + actions + '</div>' +
+            '</div>' +
           '</div>' +
           '</div>';
       }
@@ -293,4 +410,3 @@
           '</div>' +
           '</div>';
       }
-
