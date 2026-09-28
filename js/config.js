@@ -13,7 +13,7 @@ var App = window.App = window.App || {};
 var DEFAULT_STORE_LOCATION = {
   lat: null,
   lng: null,
-  name: "Aling Nena's Store",
+  name: "NelGlenn's Store",
   address: "Store GPS has not been set",
   isActualGps: false
 };

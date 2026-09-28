@@ -83,7 +83,7 @@ for (const scriptFile of modularScripts) {
 }
 
 // Assert initial startup
-assert.match(app.innerHTML, /Aling Nena's/);
+assert.match(app.innerHTML, /NelGlenn's/);
 assert.equal(JSON.parse(memory.get('sst_products')).length, 28);
 
 // Customer login

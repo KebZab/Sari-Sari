@@ -44,7 +44,7 @@
       function createStoreIcon() {
         return L.divIcon({
           className: 'leaflet-store-marker',
-          html: '<div class="store-pin-inner"><span class="store-emoji">🏪</span><span class="store-label">Aling Nena\'s</span></div>',
+          html: '<div class="store-pin-inner"><span class="store-emoji">🏪</span><span class="store-label">NelGlenn\'s</span></div>',
           iconSize: [110, 36],
           iconAnchor: [55, 36]
         });
@@ -1141,7 +1141,7 @@
 
           // Add Store Marker
           var storeMarker = L.marker([store.lat, store.lng], { icon: createStoreIcon() }).addTo(map);
-          storeMarker.bindPopup('<b>🏪 Aling Nena\'s Store</b><br>Fulfillment Base');
+          storeMarker.bindPopup('<b>🏪 NelGlenn\'s Store</b><br>Fulfillment Base');
 
           if (coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
             // Add Customer Drop-off Marker

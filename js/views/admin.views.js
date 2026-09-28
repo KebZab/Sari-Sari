@@ -33,7 +33,7 @@
         }
         return '' +
           '<div class="admin-sidebar' + (state.sidebarOpen ? ' open' : '') + '">' +
-          '<div class="admin-brand"><div class="mark">' + ICON.store + '</div><span>Aling Nena\'s Admin</span></div>' +
+          '<div class="admin-brand"><div class="mark">' + ICON.store + '</div><span>NelGlenn\'s Admin</span></div>' +
           '<div class="admin-nav">' +
           item('dashboard', ICON.dash, 'Dashboard') +
           item('orders', ICON.orders, 'Orders') +
@@ -351,7 +351,7 @@
                 '</div>' +
                 '<div id="admin-order-modal-map" class="map-box admin-order-modal-map-view"></div>' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:var(--ink-500);">' +
-                  '<span>🏪 Aling Nena\'s Store &rarr; 📍 ' + esc(o.delivery.barangay) + '</span>' +
+                  '<span>🏪 NelGlenn\'s Store &rarr; 📍 ' + esc(o.delivery.barangay) + '</span>' +
                   '<span>' + (modalCoords ? (modalCoords.lat.toFixed(5) + ', ' + modalCoords.lng.toFixed(5)) : 'No GPS set') + '</span>' +
                 '</div>' +
               '</div>' +

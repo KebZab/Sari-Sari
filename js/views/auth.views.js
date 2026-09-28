@@ -10,16 +10,16 @@ var GOOGLE_ICON_SVG = '<svg class="google-icon" viewBox="0 0 24 24" width="18" h
         return '' +
           '<div class="auth-bg">' +
           '<div class="auth-card">' +
-          '<div class="auth-logo"><div class="mark">' + ICON.store + '</div><div><div class="auth-title">Aling Nena\'s</div></div></div>' +
+          '<div class="auth-logo"><div class="mark">' + ICON.store + '</div><div><div class="auth-title">NelGlenn\'s</div></div></div>' +
           '<div class="auth-sub">Sari-sari store online ordering &amp; delivery</div>' +
           (state.loginError ? '<div class="field-error" style="display:block;margin-bottom:12px;font-weight:600;">' + esc(state.loginError) + '</div>' : '') +
           '<button type="button" class="btn btn-google btn-block" id="btn-google-login" onclick="App.handleGoogleSignIn()">' +
           GOOGLE_ICON_SVG +
           '<span>Sign in with Google</span>' +
           '</button>' +
-          '<div class="auth-divider"><span>or sign in with phone</span></div>' +
+          '<div class="auth-divider"><span>or sign in with your account</span></div>' +
           '<form onsubmit="return App.handleLogin(event)">' +
-          '<div class="field"><label>Phone number</label><input type="tel" id="login-phone" placeholder="09XXXXXXXXX" required></div>' +
+          '<div class="field"><label>Phone or Email</label><input type="text" id="login-phone" placeholder="09XXXXXXXXX or email" required></div>' +
           '<div class="field"><label>Password</label><input type="password" id="login-password" placeholder="Enter your password" required></div>' +
           '<button type="submit" class="btn btn-primary btn-block">Log in</button>' +
           '</form>' +

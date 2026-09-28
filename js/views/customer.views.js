@@ -55,7 +55,7 @@
               '<div class="brand">' +
                 '<div class="mark">' + ICON.store + '</div>' +
                 '<div class="brand-text">' +
-                  '<div class="name" style="display:flex;align-items:center;gap:6px;">Aling Nena\'s Store <span class="cloud-badge" style="font-size:10px;padding:2px 7px;"><span class="cloud-dot"></span> Live</span></div>' +
+                  '<div class="name" style="display:flex;align-items:center;gap:6px;">NelGlenn\'s Store <span class="cloud-badge" style="font-size:10px;padding:2px 7px;"><span class="cloud-dot"></span> Live</span></div>' +
                   '<div class="tag">Fresh &amp; ready for pickup or delivery</div>' +
                 '</div>' +
               '</div>' +

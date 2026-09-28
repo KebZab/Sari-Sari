@@ -13,7 +13,7 @@ function renderLocationModal() {
           '<div class="loc-subtitle">' +
           (hasCoords
             ? 'We found your actual location! We will use this to deliver your orders right to your doorstep with accurate road routing.'
-            : 'Allow location access so Aling Nena\'s Store can find your actual place, calculate delivery routes, and deliver orders right to your doorstep.') +
+            : 'Allow location access so NelGlenn\'s Store can find your actual place, calculate delivery routes, and deliver orders right to your doorstep.') +
           '</div>' +
           (hasCoords
             ? '<div class="loc-detected-badge" style="justify-content:center;"><span>✓</span><span>' + esc(place + acc) + '</span></div>'

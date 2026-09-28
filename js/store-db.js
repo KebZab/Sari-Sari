@@ -106,7 +106,7 @@ function getStoreLocation() {
           lat: coords.lat,
           lng: coords.lng,
           accuracy: coords.accuracy || null,
-          name: name || cur.name || "Aling Nena's Store",
+          name: name || cur.name || "NelGlenn's Store",
           address: address || coords.address || "Actual Store Coordinates",
           isActualGps: true,
           updatedAt: new Date().toISOString()
@@ -201,7 +201,7 @@ function getStoreLocation() {
         dbSet(K.PRODUCTS, prodObjs);
 
         var adminUser = {
-          id: uid('user'), role: 'admin', fullName: 'Aling Nena (Owner)', phone: '09171234567',
+          id: uid('user'), role: 'admin', fullName: 'NelGlenn (Owner)', phone: '09171234567',
           password: 'admin123', barangay: '', houseStreet: '', landmark: '', createdAt: new Date().toISOString()
         };
         var demoCustomer = {

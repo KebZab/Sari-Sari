@@ -131,7 +131,7 @@ var App = window.App = window.App || {};
 
           var user = currentUser();
           if (user && user.role === 'admin' && !STORE_LOCATION.isActualGps) {
-            setStoreLocation(coords, "Aling Nena's Store", "Actual Store Location (" + lat.toFixed(4) + ", " + lng.toFixed(4) + ")");
+            setStoreLocation(coords, "NelGlenn's Store", "Actual Store Location (" + lat.toFixed(4) + ", " + lng.toFixed(4) + ")");
           }
 
           reverseGeocode(lat, lng, function (res) {
