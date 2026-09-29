@@ -370,7 +370,7 @@ function getStoreLocation() {
         var pending = pendingCloudDocs[coll];
         var seen = {};
         cloudItems = cloudItems.map(function (item) {
-          seen[item.id] = true;
+          if (item && item.id) seen[item.id] = true;
           if (!pending[item.id]) return item;
           if (JSON.stringify(item) === JSON.stringify(pending[item.id])) {
             delete pending[item.id];
@@ -379,7 +379,18 @@ function getStoreLocation() {
           return pending[item.id];
         });
         Object.keys(pending).forEach(function (id) {
-          if (!seen[id]) cloudItems.push(pending[id]);
+          if (!seen[id]) {
+            cloudItems.push(pending[id]);
+            seen[id] = true;
+          }
+        });
+        var localItems = dbGet(key, []);
+        localItems.forEach(function (localItem) {
+          if (localItem && localItem.id && !seen[localItem.id]) {
+            cloudItems.push(localItem);
+            seen[localItem.id] = true;
+            syncDocToCloud(coll, localItem);
+          }
         });
         if (JSON.stringify(dbGet(key, [])) !== JSON.stringify(cloudItems)) {
           dbSet(key, cloudItems);

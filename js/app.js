@@ -409,6 +409,9 @@ var App = window.App = window.App || {};
 
       App.processGoogleUser = function (gUser) {
         if (!gUser) return;
+        state.showGoogleNoticeModal = false;
+        state.googleAuthError = null;
+
         var email = (gUser.email || '').toLowerCase().trim();
         var displayName = (gUser.displayName || '').trim();
         var photoURL = gUser.photoURL || '';
@@ -423,6 +426,7 @@ var App = window.App = window.App || {};
           return false;
         })[0];
 
+        var targetUser;
         if (matchedUser) {
           if (uidVal && !matchedUser.googleUid) matchedUser.googleUid = uidVal;
           if (photoURL && !matchedUser.photoURL) matchedUser.photoURL = photoURL;
@@ -430,14 +434,10 @@ var App = window.App = window.App || {};
           if (displayName && (!matchedUser.fullName || matchedUser.fullName === 'Google User' || matchedUser.fullName === 'Google Customer')) {
             matchedUser.fullName = displayName;
           }
-          saveUsers(users);
-          setSession(matchedUser.id);
-          state.view = matchedUser.role === 'admin' ? 'admin-dashboard' : 'customer-home';
-          state.adminSection = 'dashboard';
-          render(false);
-          toast('Welcome back, ' + (matchedUser.fullName ? matchedUser.fullName.split(' ')[0] : 'there') + '!');
+          matchedUser.authProvider = matchedUser.authProvider || 'google';
+          targetUser = matchedUser;
         } else {
-          var newCustomer = {
+          targetUser = {
             id: (typeof uid === 'function' ? uid('user') : 'user_' + Date.now().toString(36)),
             role: 'customer',
             fullName: displayName || (email ? email.split('@')[0] : 'Google Customer'),
@@ -452,14 +452,21 @@ var App = window.App = window.App || {};
             landmark: state.userPlaceName ? 'Near ' + state.userPlaceName : '',
             createdAt: new Date().toISOString()
           };
-          users.push(newCustomer);
-          saveUsers(users);
-          setSession(newCustomer.id);
-          state.view = 'customer-home';
-          state.adminSection = 'dashboard';
-          render(false);
-          toast('Signed in with Google! Welcome, ' + (newCustomer.fullName ? newCustomer.fullName.split(' ')[0] : '') + '!');
+          users.push(targetUser);
         }
+
+        if (typeof pendingCloudDocs !== 'undefined' && pendingCloudDocs.users) {
+          pendingCloudDocs.users[targetUser.id] = JSON.parse(JSON.stringify(targetUser));
+        }
+        saveUsers(users);
+        if (typeof syncDocToCloud === 'function') {
+          syncDocToCloud('users', targetUser);
+        }
+        setSession(targetUser.id);
+        state.view = targetUser.role === 'admin' ? 'admin-dashboard' : 'customer-home';
+        state.adminSection = 'dashboard';
+        render(false);
+        toast('Signed in with Google! Welcome, ' + (targetUser.fullName ? targetUser.fullName.split(' ')[0] : 'there') + '!');
       };
 
       App.showGoogleAuthNoticeModal = function (err) {
