@@ -363,35 +363,24 @@ var App = window.App = window.App || {};
             provider.addScope('email');
             provider.setCustomParameters({ prompt: 'select_account' });
 
-            var isMobile = false;
-            try {
-              isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                         (window.innerWidth && window.innerWidth <= 768);
-            } catch (e) { }
-
             toast('Connecting to Google...');
-
-            if (isMobile) {
-              auth.signInWithRedirect(provider).catch(function (err) {
-                console.warn("[Google Auth] Mobile redirect error:", err);
-                App.showGoogleAuthNoticeModal(err);
-              });
-              return;
-            }
 
             auth.signInWithPopup(provider).then(function (result) {
               if (result && result.user) {
                 App.processGoogleUser(result.user);
               }
             }).catch(function (error) {
-              console.warn("[Google Auth] Desktop popup error:", error);
-              if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+              console.warn("[Google Auth] Popup error:", error);
+              if (error && (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request')) {
                 toast('Opening Google Sign-In redirect...');
                 try {
-                  auth.signInWithRedirect(provider);
+                  auth.signInWithRedirect(provider).catch(function (redErr) {
+                    console.warn("[Google Auth] Redirect error:", redErr);
+                    App.showGoogleAuthNoticeModal(redErr);
+                  });
                   return;
                 } catch (redErr) {
-                  console.warn("[Google Auth] Fallback redirect error:", redErr);
+                  console.warn("[Google Auth] Fallback redirect exception:", redErr);
                 }
               }
               App.showGoogleAuthNoticeModal(error);
